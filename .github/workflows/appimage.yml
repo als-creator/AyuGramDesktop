@@ -197,17 +197,19 @@ jobs:
         run: |
           set -e
           REPO="${{ github.repository }}"
+          SRC="https://github.com/$REPO"
           gh release delete rolling --repo "$REPO" --yes --cleanup-tag || true
+          NOTES="Rolling AppImage of [als-creator/AyuGramDesktop]($SRC) branch \`dev\`, commit \`$GITHUB_SHA\`.
+
+          ### Compact chat list
+          Port from Kotatogram (single-line 37px rows, archive collapsed, no corner badges). Toggle: **Settings - Chats - Compact chat list**.
+
+          ### Forward without author
+          Already built into AyuGram: right-click the forwarding panel (or, in the forward box, right-click the send button - untick **Show sender name(s)**).
+
+          _Community fork of [AyuGramDesktop](https://github.com/AyuGram/AyuGramDesktop)._"
           gh release create rolling \
             AyuGram-x86_64.AppImage \
             --repo "$REPO" \
-            --title "AyuGram dev (compact chats) — rolling" \
-            --notes "Rolling AppImage of [als-creator/AyuGramDesktop](https://github.com/${{ github.repository }}) \`dev\` built from commit \`${{ github.sha }}\`.
-
-### Compact chat list
-Port from Kotatogram (single-line 37px rows, archive collapsed, no corner badges). Toggle: **Settings → Chats → Compact chat list**.
-
-### Forward without author
-Already built into AyuGram: right-click the forwarding panel (or, in the forward box, right-click the send button → untick **Show sender name(s)**).
-
-_Community fork of [AyuGramDesktop](https://github.com/AyuGram/AyuGramDesktop)._""
+            --title "AyuGram dev (compact chats) - rolling" \
+            --notes "$NOTES"
