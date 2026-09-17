@@ -25,8 +25,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ayugram-appimage-rolling
-  cancel-in-progress: true
+  group: ayugram-appimage-dev
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -191,15 +191,20 @@ jobs:
         with:
           name: AyuGram-x86_64.AppImage
 
-      - name: Update rolling release.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Publish release (actual dev version).
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
           REPO="${{ github.repository }}"
           SRC="https://github.com/$REPO"
-          gh release delete rolling --repo "$REPO" --yes --cleanup-tag || true
-          NOTES="Rolling AppImage of [als-creator/AyuGramDesktop]($SRC) branch \`dev\`, commit \`$GITHUB_SHA\`.
+          VER=$(grep '^AppVersionStr ' Telegram/build/version | awk '{print $2}')
+          TAG="v${VER}-build-${{ github.run_number }}"
+          NOTES="Dev AppImage of [als-creator/AyuGramDesktop]($SRC) branch \`dev\`, commit \`$GITHUB_SHA\`, actual version \`v${VER}\`.
 
           ### Compact chat list
           Port from Kotatogram (single-line 37px rows, archive collapsed, no corner badges). Toggle: **Settings - Chats - Compact chat list**.
@@ -207,9 +212,12 @@ jobs:
           ### Forward without author
           Already built into AyuGram: right-click the forwarding panel (or, in the forward box, right-click the send button - untick **Show sender name(s)**).
 
+          ### Russian translations
+          Full bundled Russian language pack: all settings and experimental functions are translated.
+
           _Community fork of [AyuGramDesktop](https://github.com/AyuGram/AyuGramDesktop)._"
-          gh release create rolling \
+          gh release create "$TAG" \
             AyuGram-x86_64.AppImage \
             --repo "$REPO" \
-            --title "AyuGram dev (compact chats) - rolling" \
+            --title "AyuGram v${VER} (dev, compact chats) - build ${{ github.run_number }}" \
             --notes "$NOTES"
