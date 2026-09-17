@@ -40,6 +40,7 @@ AyuLanguage::AyuLanguage() = default;
 void AyuLanguage::init() {
 	if (!instance) instance = new AyuLanguage;
 	instance->loadCachedLanguage();
+	instance->applyBundledLanguage();
 }
 
 AyuLanguage *AyuLanguage::currentInstance() {
@@ -175,7 +176,42 @@ void AyuLanguage::fetchError(QNetworkReply::NetworkError e) {
 	}
 }
 
+void AyuLanguage::applyBundledLanguage() {
+	const auto langPackId = Lang::GetInstance().id();
+	const auto langPackBaseId = Lang::GetInstance().baseId();
+	auto finalLangPackId = langMapping.contains(langPackId) ? langMapping[langPackId] : langPackId;
+
+	if (finalLangPackId.isEmpty()) {
+		finalLangPackId = langPackBaseId;
+	}
+	if (finalLangPackId.isEmpty()) {
+		return;
+	}
+
+	QFile file(qsl(":/gui/ayu/lang/%1.json").arg(finalLangPackId));
+	if (!file.exists()) {
+		return;
+	}
+	if (file.open(QIODevice::ReadOnly)) {
+		const auto data = file.readAll();
+		file.close();
+
+		QJsonParseError error{};
+		const auto doc = QJsonDocument::fromJson(data, &error);
+		if (error.error == QJsonParseError::NoError) {
+			LOG(("Applying bundled AyuGram language: %1").arg(finalLangPackId));
+			applyLanguageJsonInternal(doc);
+		}
+	}
+}
+
 void AyuLanguage::applyLanguageJson(QJsonDocument doc) {
+	applyLanguageJsonInternal(doc);
+	applyBundledLanguage();
+	Lang::GetInstance().updatePluralRules();
+}
+
+void AyuLanguage::applyLanguageJsonInternal(QJsonDocument doc) {
 	const auto json = doc.object();
 	for (const QString &brokenKey : json.keys()) {
 		auto key = qsl("ayu_") + brokenKey;
