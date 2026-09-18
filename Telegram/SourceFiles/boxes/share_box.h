@@ -104,7 +104,8 @@ public:
 		Fn<bool()> checkPaid,
 		TextWithTags&&,
 		Api::SendOptions,
-		Data::ForwardOptions)>;
+		Data::ForwardOptions,
+		Data::GroupingOptions)>;
 	using FilterCallback = Fn<bool(not_null<Data::Thread*>)>;
 
 	[[nodiscard]] static auto DefaultForwardCountMessages(
@@ -186,6 +187,7 @@ private:
 
 	base::unique_qptr<Ui::PopupMenu> _menu;
 	Ui::ForwardOptions _forwardOptions;
+	Data::GroupingOptions _groupOptions = Data::GroupingOptions::GroupAsIs;
 
 	class Inner;
 	QPointer<Inner> _inner;

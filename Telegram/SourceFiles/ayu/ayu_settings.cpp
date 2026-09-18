@@ -1075,6 +1075,24 @@ void AyuSettings::setChatListCompact(bool val) {
 	save();
 }
 
+void AyuSettings::setForwardMode(int val) {
+	if (_forwardMode.current() == val) return;
+	_forwardMode = val;
+	save();
+}
+
+void AyuSettings::setForwardGroupingMode(int val) {
+	if (_forwardGroupingMode.current() == val) return;
+	_forwardGroupingMode = val;
+	save();
+}
+
+void AyuSettings::setForwardRememberMode(bool val) {
+	if (_forwardRememberMode.current() == val) return;
+	_forwardRememberMode = val;
+	save();
+}
+
 void to_json(nlohmann::json &j, const AyuSettings &s) {
 	auto ghostAccounts = nlohmann::json::object();
 	for (const auto &[key, value] : s._ghostAccounts) {
@@ -1172,6 +1190,9 @@ void to_json(nlohmann::json &j, const AyuSettings &s) {
 		{"singleCornerRadius", s._singleCornerRadius.current()},
 		{"streamerMode", s._streamerMode.current()},
 		{"chatListCompact", s._chatListCompact.current()},
+		{"forwardMode", s._forwardMode.current()},
+		{"forwardGroupingMode", s._forwardGroupingMode.current()},
+		{"forwardRememberMode", s._forwardRememberMode.current()},
 		{"messageShotSettings", s._messageShotSettings}
 	};
 }
@@ -1277,6 +1298,9 @@ void from_json(const nlohmann::json &j, AyuSettings &s) {
 	s._singleCornerRadius = j.value("singleCornerRadius", defaults._singleCornerRadius.current());
 	s._streamerMode = j.value("streamerMode", defaults._streamerMode.current());
 	s._chatListCompact = j.value("chatListCompact", defaults._chatListCompact.current());
+	s._forwardMode = j.value("forwardMode", defaults._forwardMode.current());
+	s._forwardGroupingMode = j.value("forwardGroupingMode", defaults._forwardGroupingMode.current());
+	s._forwardRememberMode = j.value("forwardRememberMode", defaults._forwardRememberMode.current());
 
 	if (j.contains("messageShotSettings") && j["messageShotSettings"].is_object()) {
 		j["messageShotSettings"].get_to(s._messageShotSettings);

@@ -354,6 +354,9 @@ public:
 	[[nodiscard]] bool singleCornerRadius() const { return _singleCornerRadius.current(); }
 	[[nodiscard]] bool streamerMode() const { return _streamerMode.current(); }
 	[[nodiscard]] bool chatListCompact() const { return _chatListCompact.current(); }
+	[[nodiscard]] int forwardMode() const { return _forwardMode.current(); }
+	[[nodiscard]] int forwardGroupingMode() const { return _forwardGroupingMode.current(); }
+	[[nodiscard]] bool forwardRememberMode() const { return _forwardRememberMode.current(); }
 
 	void setSaveDeletedMessages(bool val);
 	void setSaveMessagesHistory(bool val);
@@ -442,6 +445,9 @@ public:
 	void setSingleCornerRadius(bool val);
 	void setStreamerMode(bool val);
 	void setChatListCompact(bool val);
+	void setForwardMode(int val);
+	void setForwardGroupingMode(int val);
+	void setForwardRememberMode(bool val);
 
 	[[nodiscard]] rpl::producer<bool> useGlobalGhostModeValue() const { return _useGlobalGhostMode.value(); }
 	[[nodiscard]] rpl::producer<bool> useGlobalGhostModeChanges() const { return _useGlobalGhostMode.changes(); }
@@ -619,6 +625,9 @@ public:
 	[[nodiscard]] rpl::producer<bool> streamerModeChanges() const { return _streamerMode.changes(); }
 	[[nodiscard]] rpl::producer<bool> chatListCompactValue() const { return _chatListCompact.value(); }
 	[[nodiscard]] rpl::producer<bool> chatListCompactChanges() const { return _chatListCompact.changes(); }
+	[[nodiscard]] rpl::producer<int> forwardModeValue() const { return _forwardMode.value(); }
+	[[nodiscard]] rpl::producer<int> forwardGroupingModeValue() const { return _forwardGroupingMode.value(); }
+	[[nodiscard]] rpl::producer<bool> forwardRememberModeValue() const { return _forwardRememberMode.value(); }
 
 	friend void to_json(nlohmann::json &j, const AyuSettings &s);
 	friend void from_json(const nlohmann::json &j, AyuSettings &s);
@@ -716,6 +725,9 @@ private:
 	rpl::variable<bool> _singleCornerRadius = false;
 	rpl::variable<bool> _streamerMode = false;
 	rpl::variable<bool> _chatListCompact = false;
+	rpl::variable<int> _forwardMode = 0;
+	rpl::variable<int> _forwardGroupingMode = 0;
+	rpl::variable<bool> _forwardRememberMode = false;
 
 	rpl::variable<bool> _useGlobalGhostMode = true;
 	std::map<uint64, std::unique_ptr<GhostModeAccountSettings>> _ghostAccounts;

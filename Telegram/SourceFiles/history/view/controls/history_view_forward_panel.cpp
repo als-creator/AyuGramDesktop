@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/controls/history_view_forward_panel.h"
 
 #include "history/history.h"
+#include "ayu/ayu_settings.h"
 #include "history/history_item.h"
 #include "history/history_item_helpers.h"
 #include "history/history_item_components.h"
@@ -247,7 +248,12 @@ void ForwardPanel::applyOptions(Data::ForwardOptions options) {
 		_to->owningHistory()->setForwardDraft(topicRootId, monoforumPeerId, {
 			.ids = _to->owner().itemsToIds(_data.items),
 			.options = options,
+			.groupOptions = _data.groupOptions,
 		});
+		// AyuGram-changed: persist mode on explicit toggle if remember is on.
+		if (AyuSettings::getInstance().forwardRememberMode()) {
+			AyuSettings::getInstance().setForwardMode(static_cast<int>(options));
+		}
 		_repaint();
 	}
 }

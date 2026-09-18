@@ -9035,3 +9035,16 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "ayu_AboutText1" = "ToS breaking Telegram client based on {api_link}.";
 "ayu_UpdateAyuGram" = "Update AyuGram";
 "ayu_UtilityRestartRequired" = "The app will close in 5 seconds.";
+"ayu_ForwardMenu_Quoted" = "Forward with sender names";
+"ayu_ForwardMenu_Unquoted" = "Forward without sender name";
+"ayu_ForwardMenu_Uncaptioned" = "Forward without names and captions";
+"ayu_ForwardGroupingMode_PreserveAlbums" = "Group albums as is";
+"ayu_ForwardGroupingMode_Regroup" = "Regroup all media";
+"ayu_ForwardGroupingMode_Separate" = "Separate into single messages";
+"ayu_ForwardMode" = "Forward mode";
+"ayu_ForwardMode_PreserveInfo" = "As usual";
+"ayu_ForwardMode_NoSenderNames" = "Without sender names";
+"ayu_ForwardMode_NoNamesAndCaptions" = "Without names and captions";
+"ayu_ForwardGroupingMode" = "Forward media grouping";
+"ayu_ForwardRememberMode" = "Remember chosen forward options";
+"ayu_CategoryForward" = "Forwarding";
