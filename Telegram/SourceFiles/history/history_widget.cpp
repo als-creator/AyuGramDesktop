@@ -8961,7 +8961,110 @@ void HistoryWidget::mousePressEvent(QMouseEvent *e) {
 		|| (isReadyToForward && e->button() == Qt::LeftButton)) {
 		editDraftOptions();
 	} else if (isReadyToForward) {
-		_forwardPanel->editToNextOption();
+		// AyuGram-changed: forward panel context menu (mode + grouping).
+		using Options = Data::ForwardOptions;
+		using GOptions = Data::GroupingOptions;
+		const auto &draftRef = _forwardPanel->draft();
+		const auto currentOptions = draftRef.options;
+		const auto currentGrouping = draftRef.groupOptions;
+		const auto count = int(draftRef.items.size());
+		const auto hasMediaToGroup = [&] {
+			if (count < 2) {
+				return false;
+			}
+			auto grouppableMediaCount = 0;
+			for (const auto &item : draftRef.items) {
+				if (item->media() && item->media()->canBeGrouped()) {
+					grouppableMediaCount++;
+				} else {
+					grouppableMediaCount = 0;
+				}
+				if (grouppableMediaCount > 1) {
+					return true;
+				}
+			}
+			return false;
+		}();
+		const auto setForward = [=](Options options, GOptions grouping) {
+			_history->setForwardDraft(MsgId(), PeerId(), {
+				.ids = session().data().itemsToIds(_forwardPanel->items()),
+				.options = options,
+				.groupOptions = grouping,
+			});
+			updateForwarding();
+		};
+		const auto rememberMode = [&](int value) {
+			if (AyuSettings::getInstance().forwardRememberMode()) {
+				AyuSettings::getInstance().setForwardMode(value);
+			}
+		};
+		const auto rememberGrouping = [&](int value) {
+			if (AyuSettings::getInstance().forwardRememberMode()) {
+				AyuSettings::getInstance().setForwardGroupingMode(value);
+			}
+		};
+		_menu = base::make_unique_q<Ui::PopupMenu>(this);
+		if (currentOptions != Options::PreserveInfo) {
+			_menu->addAction(
+				tr::ayu_ForwardMenu_Quoted(tr::now),
+				[=] {
+					setForward(Options::PreserveInfo, currentGrouping);
+					rememberMode(0);
+				});
+		}
+		if (currentOptions != Options::NoSenderNames) {
+			_menu->addAction(
+				tr::ayu_ForwardMenu_Unquoted(tr::now),
+				[=] {
+					setForward(Options::NoSenderNames, currentGrouping);
+					rememberMode(1);
+				});
+		}
+		const auto hasCaptions = [&] {
+			for (const auto &item : draftRef.items) {
+				if (item->media()
+					&& !item->originalText().text.isEmpty()
+					&& item->media()->allowsEditCaption()) {
+					return true;
+				}
+			}
+			return false;
+		}();
+		if (currentOptions != Options::NoNamesAndCaptions && hasCaptions) {
+			_menu->addAction(
+				tr::ayu_ForwardMenu_Uncaptioned(tr::now),
+				[=] {
+					setForward(Options::NoNamesAndCaptions, currentGrouping);
+					rememberMode(2);
+				});
+		}
+		if (hasMediaToGroup && count > 1) {
+			_menu->addSeparator();
+			const auto addGrouping = [&](GOptions option, QString text, int value) {
+				if (currentGrouping == option) {
+					return;
+				}
+				_menu->addAction(
+					std::move(text),
+					[=] {
+						setForward(currentOptions, option);
+						rememberGrouping(value);
+					});
+			};
+			addGrouping(
+				GOptions::GroupAsIs,
+				tr::ayu_ForwardGroupingMode_PreserveAlbums(tr::now),
+				0);
+			addGrouping(
+				GOptions::RegroupAll,
+				tr::ayu_ForwardGroupingMode_Regroup(tr::now),
+				1);
+			addGrouping(
+				GOptions::Separate,
+				tr::ayu_ForwardGroupingMode_Separate(tr::now),
+				2);
+		}
+		_menu->popup(QCursor::pos());
 	} else if (_kbReplyTo) {
 		controller()->showPeerHistory(
 			_kbReplyTo->history()->peer->id,

@@ -15,6 +15,7 @@
 #include "ayu/ui/settings/settings_main.h"
 #include "settings/settings_builder.h"
 #include "settings/settings_common.h"
+#include "ui/boxes/single_choice_box.h"
 #include "styles/style_ayu_icons.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
@@ -458,6 +459,89 @@ void BuildMessageFieldPopups(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 	});
 }
 
+void BuildForward(SectionBuilder &builder, AyuSectionBuilder &ayu) {
+	auto *settings = &AyuSettings::getInstance();
+	const auto controller = builder.controller();
+	const auto clampMode = [](int value) {
+		return std::clamp(value, 0, 2);
+	};
+
+	ayu.addSectionDivider();
+	builder.addSubsectionTitle(tr::ayu_CategoryForward());
+
+	{
+		const auto options = std::vector{
+			QString(tr::ayu_ForwardMode_PreserveInfo(tr::now)),
+			QString(tr::ayu_ForwardMode_NoSenderNames(tr::now)),
+			QString(tr::ayu_ForwardMode_NoNamesAndCaptions(tr::now)),
+		};
+		auto currentVal = settings->forwardModeValue()
+			| rpl::map([=](int val) {
+				return options[clampMode(val)];
+			});
+		builder.addButton({
+			.id = u"ayu/forwardMode"_q,
+			.title = tr::ayu_ForwardMode(),
+			.st = &st::settingsButtonNoIcon,
+			.label = std::move(currentVal),
+			.onClick = [=] {
+				controller->show(Box(
+					[=](not_null<Ui::GenericBox*> box) {
+						SingleChoiceBox(box, {
+							.title = tr::ayu_ForwardMode(),
+							.options = options,
+							.initialSelection = clampMode(
+								settings->forwardMode()),
+							.callback = [=](int index) {
+								AyuSettings::getInstance().setForwardMode(
+									index);
+							},
+						});
+					}));
+			},
+		});
+	}
+	{
+		const auto options = std::vector{
+			QString(tr::ayu_ForwardGroupingMode_PreserveAlbums(tr::now)),
+			QString(tr::ayu_ForwardGroupingMode_Regroup(tr::now)),
+			QString(tr::ayu_ForwardGroupingMode_Separate(tr::now)),
+		};
+		auto currentVal = settings->forwardGroupingModeValue()
+			| rpl::map([=](int val) {
+				return options[clampMode(val)];
+			});
+		builder.addButton({
+			.id = u"ayu/forwardGroupingMode"_q,
+			.title = tr::ayu_ForwardGroupingMode(),
+			.st = &st::settingsButtonNoIcon,
+			.label = std::move(currentVal),
+			.onClick = [=] {
+				controller->show(Box(
+					[=](not_null<Ui::GenericBox*> box) {
+						SingleChoiceBox(box, {
+							.title = tr::ayu_ForwardGroupingMode(),
+							.options = options,
+							.initialSelection = clampMode(
+								settings->forwardGroupingMode()),
+							.callback = [=](int index) {
+								AyuSettings::getInstance()
+									.setForwardGroupingMode(index);
+							},
+						});
+					}));
+			},
+		});
+	}
+
+	ayu.addSettingToggle({
+		.id = u"ayu/forwardRememberMode"_q,
+		.title = tr::ayu_ForwardRememberMode(),
+		.getter = &AyuSettings::forwardRememberMode,
+		.setter = &AyuSettings::setForwardRememberMode,
+	});
+}
+
 const auto kMeta = BuildHelper({
 	.id = AyuChats::Id(),
 	.parentId = AyuMain::Id(),
@@ -476,6 +560,7 @@ const auto kMeta = BuildHelper({
 	BuildContextMenuElements(builder, ayu);
 	BuildMessageFieldElements(builder, ayu);
 	BuildMessageFieldPopups(builder, ayu);
+	BuildForward(builder, ayu);
 	builder.addSkip();
 });
 

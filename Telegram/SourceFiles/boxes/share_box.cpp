@@ -69,6 +69,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 // AyuGram includes
 #include "ayu/features/forward/ayu_forward.h"
+#include "ayu/ayu_settings.h"
 
 
 class ShareBox::Inner final : public Ui::RpWidget {
@@ -581,8 +582,57 @@ void ShareBox::showMenu(not_null<Ui::RpWidget*> parent) {
 		Ui::FillForwardOptions(
 			std::move(createView),
 			_forwardOptions,
-			[=](Ui::ForwardOptions value) { _forwardOptions = value; },
+			[=](Ui::ForwardOptions value) {
+				_forwardOptions = value;
+				// AyuGram-changed: remember mode on explicit toggle.
+				if (AyuSettings::getInstance().forwardRememberMode()) {
+					AyuSettings::getInstance().setForwardMode(
+						value.dropNames
+						? (value.dropCaptions ? 2 : 1)
+						: 0);
+				}
+			},
 			_menu->lifetime());
+
+		_menu->addSeparator();
+
+		// AyuGram-changed: grouping options section.
+		using GOptions = Data::GroupingOptions;
+		const auto addGroupingOption = [&](
+				Data::GroupingOptions option,
+				rpl::producer<QString> &&text) {
+			auto item = base::make_unique_q<Menu::ItemWithCheck>(
+				_menu->menu(),
+				st::popupMenuWithIcons.menu,
+				Ui::CreateChild<QAction>(_menu->menu().get()),
+				nullptr,
+				nullptr);
+			std::move(
+				text
+			) | rpl::on_next([action = item->action()](QString text) {
+				action->setText(text);
+			}, item->lifetime());
+			item->init(_groupOptions == option);
+			const auto view = item->checkView();
+			_menu->addAction(std::move(item));
+			view->setClickedCallback([=] {
+				_groupOptions = option;
+				// AyuGram-changed: remember grouping on explicit toggle.
+				if (AyuSettings::getInstance().forwardRememberMode()) {
+					AyuSettings::getInstance().setForwardGroupingMode(
+						static_cast<int>(option));
+				}
+			});
+		};
+		addGroupingOption(
+			GOptions::GroupAsIs,
+			tr::ayu_ForwardGroupingMode_PreserveAlbums());
+		addGroupingOption(
+			GOptions::RegroupAll,
+			tr::ayu_ForwardGroupingMode_Regroup());
+		addGroupingOption(
+			GOptions::Separate,
+			tr::ayu_ForwardGroupingMode_Separate());
 
 		_menu->addSeparator();
 	}
@@ -630,6 +680,15 @@ void ShareBox::createButtons() {
 			= _descriptor.forwardOptions.sendersCount;
 		_forwardOptions.captionsCount
 			= _descriptor.forwardOptions.captionsCount;
+		// AyuGram-changed: persistent forward defaults from settings.
+		{
+			const auto &settings = AyuSettings::getInstance();
+			const auto mode = std::clamp(settings.forwardMode(), 0, 2);
+			_forwardOptions.dropNames = (mode != 0);
+			_forwardOptions.dropCaptions = (mode == 2);
+			_groupOptions = static_cast<Data::GroupingOptions>(
+				std::clamp(settings.forwardGroupingMode(), 0, 2));
+		}
 
 		send->setAcceptBoth();
 		send->clicks(
@@ -768,7 +827,8 @@ void ShareBox::submit(Api::SendOptions options) {
 			checkPaid,
 			std::move(comment),
 			options,
-			forwardOptions);
+			forwardOptions,
+			_groupOptions);
 	}
 }
 
@@ -1800,7 +1860,8 @@ ShareBox::SubmitCallback ShareBox::DefaultForwardCallback(
 			Fn<bool()> checkPaid,
 			TextWithTags comment,
 			Api::SendOptions options,
-			Data::ForwardOptions forwardOptions) {
+			Data::ForwardOptions forwardOptions,
+			Data::GroupingOptions groupOptions) {
 		if (!state->requests.empty()) {
 			return; // Share clicked already.
 		}
@@ -1917,6 +1978,33 @@ ShareBox::SubmitCallback ShareBox::DefaultForwardCallback(
 				message.textWithTags = comment;
 				message.action.clearDraft = false;
 				api.sendMessage(std::move(message));
+			}
+
+			// AyuGram-changed: RegroupAll / Separate forward through ApiWrap.
+			if (groupOptions != Data::GroupingOptions::GroupAsIs
+				&& forwardOptions != Data::ForwardOptions::PreserveInfo) {
+				const auto requestKey = ++state->nextRequestKey;
+				state->requests.insert(requestKey);
+				api.forwardMessages(
+					Data::ResolvedForwardDraft{
+						.items = items,
+						.options = forwardOptions,
+						.groupOptions = groupOptions,
+					},
+					Api::SendAction(effectiveThread, options),
+					[=] {
+						state->requests.remove(requestKey);
+						if (state->requests.empty()) {
+							if (show->valid()) {
+								show->hideLayer();
+								ShowForwardedMessageToast(
+									show,
+									&history->session(),
+									donePhraseArgs);
+							}
+						}
+					});
+				continue;
 			}
 
 			const auto topicRootId = effectiveThread->topicRootId();
@@ -2249,7 +2337,8 @@ void FastShareLink(
 			Fn<bool()> checkPaid,
 			TextWithTags &&comment,
 			Api::SendOptions options,
-			::Data::ForwardOptions) {
+			::Data::ForwardOptions,
+			::Data::GroupingOptions) {
 		if (*sending || result.empty()) {
 			return;
 		}

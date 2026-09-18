@@ -3869,6 +3869,16 @@ void ApiWrap::forwardMessages(
 		draft.items,
 		draft.options);
 
+	// AyuGram-changed: RegroupAll rewrites the media as our own messages.
+	if (draft.groupOptions == Data::GroupingOptions::RegroupAll
+		&& draft.options != Data::ForwardOptions::PreserveInfo) {
+		forwardMessagesUnquoted(
+			std::move(draft),
+			action,
+			std::move(successCallback));
+		return;
+	}
+
 	struct SharedCallback {
 		int requestsLeft = 0;
 		FnMut<void()> callback;
@@ -4073,12 +4083,552 @@ void ApiWrap::forwardMessages(
 			localIds->emplace(randomId, newId);
 		}
 		const auto newFrom = item->history()->peer;
-		if (forwardFrom != newFrom) {
+		if (!ids.isEmpty()
+			&& (forwardFrom != newFrom
+				|| draft.groupOptions == Data::GroupingOptions::Separate)) {
 			sendAccumulated();
 			forwardFrom = newFrom;
 		}
 		ids.push_back(MTP_int(item->id));
 		randomIds.push_back(MTP_long(randomId));
+	}
+	sendAccumulated();
+	_session->data().sendHistoryChangeNotifications();
+}
+
+void ApiWrap::forwardMessagesUnquoted(
+		Data::ResolvedForwardDraft &&draft,
+		SendAction action,
+		FnMut<void()> &&successCallback) {
+	Expects(!draft.items.empty());
+
+	auto &histories = _session->data().histories();
+
+	for (auto i = begin(draft.items); i != end(draft.items);) {
+		const auto item = *i;
+		if (item->isSavedMusicItem()) {
+			SendExistingDocument(MessageToSend(action), item->media()->document());
+			i = draft.items.erase(i);
+		} else {
+			++i;
+		}
+	}
+	if (draft.items.empty()) {
+		if (successCallback) {
+			successCallback();
+		}
+		return;
+	}
+	draft.options = HistoryView::Controls::NormalizeForwardOptions(
+		_session,
+		draft.items,
+		draft.options);
+
+	struct SharedCallback {
+		int requestsLeft = 0;
+		FnMut<void()> callback;
+	};
+	const auto shared = successCallback
+		? std::make_shared<SharedCallback>()
+		: std::shared_ptr<SharedCallback>();
+	if (successCallback) {
+		shared->callback = std::move(successCallback);
+	}
+
+	const auto count = int(draft.items.size());
+	const auto history = action.history;
+	const auto peer = history->peer;
+
+	if (!action.options.scheduled && !action.options.shortcutId) {
+		histories.readInbox(history);
+	}
+	const auto sendAs = action.options.sendAs;
+	const auto silentPost = ShouldSendSilent(peer, action.options);
+
+	using SendFlag = MTPmessages_ForwardMessages::Flag;
+	auto flags = MessageFlags();
+	auto sendFlags = SendFlag() | SendFlag();
+	FillMessagePostFlags(action, peer, flags);
+	if (silentPost) {
+		sendFlags |= SendFlag::f_silent;
+	}
+	if (action.options.scheduled) {
+		flags |= MessageFlag::IsOrWasScheduled;
+		sendFlags |= SendFlag::f_schedule_date;
+		if (action.options.scheduleRepeatPeriod) {
+			sendFlags |= SendFlag::f_schedule_repeat_period;
+		}
+	}
+	if (action.options.shortcutId) {
+		flags |= MessageFlag::ShortcutMessage;
+		sendFlags |= SendFlag::f_quick_reply_shortcut;
+	}
+	if (action.options.effectId) {
+		sendFlags |= SendFlag::f_effect;
+	}
+	if (draft.options != Data::ForwardOptions::PreserveInfo) {
+		sendFlags |= SendFlag::f_drop_author;
+	}
+	if (draft.options == Data::ForwardOptions::NoNamesAndCaptions) {
+		sendFlags |= SendFlag::f_drop_media_captions;
+	}
+	if (sendAs) {
+		sendFlags |= SendFlag::f_send_as;
+	}
+	if (action.options.suggest) {
+		sendFlags |= SendFlag::f_suggested_post;
+	}
+	const auto kGeneralId = Data::ForumTopic::kGeneralId;
+	const auto topicRootId = action.replyTo.topicRootId;
+	const auto topMsgId = (topicRootId == kGeneralId) ? MsgId(0) : topicRootId;
+	if (topMsgId) {
+		sendFlags |= SendFlag::f_top_msg_id;
+	}
+	const auto monoforumPeerId = action.replyTo.monoforumPeerId;
+	const auto monoforumPeer = monoforumPeerId
+		? session().data().peer(monoforumPeerId).get()
+		: nullptr;
+	if (monoforumPeer || (action.options.suggest && action.replyTo)) {
+		sendFlags |= SendFlag::f_reply_to;
+	}
+
+	struct LastGroupType {
+		enum Type {
+			None,
+			Medias,
+			Music,
+			Documents,
+		};
+	};
+	auto forwardFrom = draft.items.front()->history()->peer;
+	auto lastGroup = LastGroupType::None;
+	auto ids = QVector<MTPint>();
+	auto randomIds = QVector<MTPlong>();
+	auto fromIter = draft.items.begin();
+	auto toIter = draft.items.begin();
+	auto messageGroupCount = 0;
+	const auto messagePostAuthor = NewMessagePostAuthor(action);
+
+	const auto needNextGroup = [&](not_null<HistoryItem*> item) {
+		auto lastGroupCheck = false;
+		if (item->media() && item->media()->canBeGrouped()) {
+			lastGroupCheck = lastGroup
+				!= ((item->media()->photo()
+					|| (item->media()->document()
+						&& item->media()->document()->isVideoFile()))
+					? LastGroupType::Medias
+					: (item->media()->document()
+						&& item->media()->document()->isSong())
+					? LastGroupType::Music
+					: LastGroupType::Documents);
+		} else {
+			lastGroupCheck = (lastGroup != LastGroupType::None);
+		}
+
+		return lastGroupCheck || messageGroupCount >= 10;
+	};
+
+	const auto isGrouped = [&] {
+		return (lastGroup != LastGroupType::None)
+			&& (messageGroupCount > 1)
+			&& (messageGroupCount <= 10);
+	};
+
+	const auto forwardQuotedSingle = [&](not_null<HistoryItem*> item) {
+		if (shared) {
+			++shared->requestsLeft;
+		}
+
+		auto currentIds = QVector<MTPint>();
+		currentIds.push_back(MTP_int(item->id));
+
+		const auto currentRandomId = base::RandomValue<uint64>();
+		auto currentRandomIds = QVector<MTPlong>();
+		currentRandomIds.push_back(MTP_long(currentRandomId));
+
+		const auto starsPaid = std::min(
+			action.options.starsApproved,
+			int(peer->starsPerMessageChecked()));
+		auto oneFlags = sendFlags;
+		if (starsPaid) {
+			action.options.starsApproved -= starsPaid;
+			oneFlags |= SendFlag::f_allow_paid_stars;
+		}
+		auto buildMessage = [=](
+				not_null<History*> history,
+				FullReplyTo replyTo)
+			-> Data::Histories::PreparedMessage {
+			const auto kGeneralId = Data::ForumTopic::kGeneralId;
+			const auto realTopMsgId = (replyTo.topicRootId == kGeneralId)
+				? MsgId(0)
+				: replyTo.topicRootId;
+			auto finalFlags = oneFlags;
+			if (realTopMsgId) {
+				finalFlags |= SendFlag::f_top_msg_id;
+			} else {
+				finalFlags &= ~SendFlag::f_top_msg_id;
+			}
+			return MTPmessages_ForwardMessages(
+				MTP_flags(finalFlags),
+				forwardFrom->input(),
+				MTP_vector<MTPint>(currentIds),
+				MTP_vector<MTPlong>(currentRandomIds),
+				history->peer->input(),
+				MTP_int(realTopMsgId),
+				(action.options.suggest
+					? ReplyToForMTP(history, replyTo)
+					: monoforumPeer
+					? MTP_inputReplyToMonoForum(monoforumPeer->input())
+					: MTPInputReplyTo()),
+				MTP_int(action.options.scheduled),
+				MTP_int(action.options.scheduleRepeatPeriod),
+				(sendAs ? sendAs->input() : MTP_inputPeerEmpty()),
+				Data::ShortcutIdToMTP(
+					&history->session(),
+					action.options.shortcutId),
+				MTP_long(action.options.effectId),
+				MTPint(), // video_timestamp
+				MTP_long(starsPaid),
+				Api::SuggestToMTP(action.options.suggest));
+		};
+		const auto scheduled = action.options.scheduled;
+		histories.sendPreparedMessage(
+			history,
+			FullReplyTo{ .topicRootId = topicRootId },
+			uint64(0), // randomId
+			std::move(buildMessage),
+			[=](const MTPUpdates &result, const MTP::Response &) {
+				if (!scheduled) {
+					_session->api().updates().checkForSentToScheduled(result);
+				}
+				if (shared && !--shared->requestsLeft) {
+					shared->callback();
+				}
+				if (peer->isSelf() && _session->premium()) {
+					ProcessRecentSelfForwards(
+						_session,
+						result,
+						peer->id,
+						forwardFrom->id);
+				}
+			},
+			[=](const MTP::Error &error, const MTP::Response &) {
+				_session->api().sendMessageFail(error, peer);
+			});
+	};
+
+	const auto forwardAlbumUnquoted = [&] {
+		if (shared) {
+			++shared->requestsLeft;
+		}
+
+		const auto medias = std::make_shared<QVector<MTPInputSingleMedia>>();
+		const auto localIds = std::make_shared<base::flat_map<uint64, FullMsgId>>();
+		medias->reserve(ids.size());
+
+		const auto newGroupId = base::RandomValue<uint64>();
+		auto msgFlags = NewMessageFlags(peer);
+		if (action.replyTo) {
+			msgFlags |= MessageFlag::HasReplyInfo;
+		}
+		FillMessagePostFlags(action, peer, msgFlags);
+		if (action.options.scheduled) {
+			msgFlags |= MessageFlag::IsOrWasScheduled;
+		}
+		if (action.options.shortcutId) {
+			msgFlags |= MessageFlag::ShortcutMessage;
+		}
+
+		for (auto i = fromIter, e = toIter; i != e; i++) {
+			const auto item = *i;
+			const auto media = item->media();
+
+			const auto inputMedia = media->photo()
+				? MTP_inputMediaPhoto(
+					MTP_flags(0),
+					media->photo()->mtpInput(),
+					MTPint(), // ttl_seconds
+					MTPInputDocument()) // video_cover
+				: MTP_inputMediaDocument(
+					MTP_flags(0),
+					media->document()->mtpInput(),
+					MTPInputPhoto(), // video_cover
+					MTPint(), // ttl_seconds
+					MTPint(), // video_timestamp
+					MTPstring()); // query
+
+			auto caption = (draft.options != Data::ForwardOptions::NoNamesAndCaptions)
+				? item->originalText()
+				: TextWithEntities();
+			auto sentEntities = Api::EntitiesToMTP(
+				_session,
+				caption.entities,
+				Api::ConvertOption::SkipLocal);
+
+			const auto mediaFlags = !sentEntities.v.isEmpty()
+				? MTPDinputSingleMedia::Flag::f_entities
+				: MTPDinputSingleMedia::Flag(0);
+
+			const auto newId = FullMsgId(
+				peer->id,
+				_session->data().nextLocalMessageId());
+			const auto randomId = randomIds.takeFirst();
+
+			medias->push_back(MTP_inputSingleMedia(
+				MTP_flags(mediaFlags),
+				inputMedia,
+				MTP_long(randomId),
+				MTP_string(caption.text),
+				sentEntities));
+
+			_session->data().registerMessageRandomId(randomId, newId);
+			localIds->emplace(randomId, newId);
+
+			if (const auto photo = media->photo()) {
+				history->addNewLocalMessage({
+					.id = newId.msg,
+					.flags = msgFlags,
+					.from = NewMessageFromId(action),
+					.replyTo = action.replyTo,
+					.date = NewMessageDate(action.options),
+					.shortcutId = action.options.shortcutId,
+					.postAuthor = messagePostAuthor,
+					.groupedId = newGroupId,
+				}, photo, caption);
+			} else if (const auto document = media->document()) {
+				history->addNewLocalMessage({
+					.id = newId.msg,
+					.flags = msgFlags,
+					.from = NewMessageFromId(action),
+					.replyTo = action.replyTo,
+					.date = NewMessageDate(action.options),
+					.shortcutId = action.options.shortcutId,
+					.postAuthor = messagePostAuthor,
+					.groupedId = newGroupId,
+				}, document, caption);
+			}
+		}
+
+		const auto starsPaid = std::min(
+			action.options.starsApproved,
+			int(medias->size() * peer->starsPerMessageChecked()));
+		action.options.starsApproved -= starsPaid;
+		using MultiFlag = MTPmessages_SendMultiMedia::Flag;
+		const auto finalFlags = MultiFlag(0)
+			| (action.replyTo ? MultiFlag::f_reply_to : MultiFlag(0))
+			| (silentPost ? MultiFlag::f_silent : MultiFlag(0))
+			| (action.options.scheduled ? MultiFlag::f_schedule_date : MultiFlag(0))
+			| (sendAs ? MultiFlag::f_send_as : MultiFlag(0))
+			| (action.options.shortcutId
+				? MultiFlag::f_quick_reply_shortcut
+				: MultiFlag(0))
+			| (action.options.effectId ? MultiFlag::f_effect : MultiFlag(0))
+			| (starsPaid ? MultiFlag::f_allow_paid_stars : MultiFlag(0));
+		const auto scheduled = action.options.scheduled;
+		histories.sendPreparedMessage(
+			history,
+			action.replyTo,
+			uint64(0), // randomId
+			Data::Histories::PrepareMessage<MTPmessages_SendMultiMedia>(
+				MTP_flags(finalFlags),
+				peer->input(),
+				Data::Histories::ReplyToPlaceholder(),
+				MTP_vector<MTPInputSingleMedia>(*medias),
+				MTP_int(action.options.scheduled),
+				(sendAs ? sendAs->input() : MTP_inputPeerEmpty()),
+				Data::ShortcutIdToMTP(
+					&history->session(),
+					action.options.shortcutId),
+				MTP_long(action.options.effectId),
+				MTP_long(starsPaid)
+			),
+			[=](const MTPUpdates &result, const MTP::Response &) {
+				if (!scheduled) {
+					_session->api().updates().checkForSentToScheduled(result);
+				}
+				if (shared && !--shared->requestsLeft) {
+					shared->callback();
+				}
+			},
+			[=](const MTP::Error &error, const MTP::Response &) {
+				for (const auto &[randomId, itemId] : *localIds) {
+					sendMessageFail(error, peer, randomId, itemId);
+				}
+			});
+	};
+
+	const auto forwardMediaUnquoted = [&](not_null<HistoryItem*> item) {
+		if (shared) {
+			++shared->requestsLeft;
+		}
+		const auto media = item->media();
+		Expects(media != nullptr);
+
+		const auto caption = (draft.options != Data::ForwardOptions::NoNamesAndCaptions)
+			? item->originalText()
+			: TextWithEntities();
+		auto sentEntities = Api::EntitiesToMTP(
+			_session,
+			caption.entities,
+			Api::ConvertOption::SkipLocal);
+
+		const auto randomId = randomIds.takeFirst();
+		const auto newId = FullMsgId(
+			peer->id,
+			_session->data().nextLocalMessageId());
+		_session->data().registerMessageRandomId(randomId, newId);
+
+		auto msgFlags = NewMessageFlags(peer);
+		if (action.replyTo) {
+			msgFlags |= MessageFlag::HasReplyInfo;
+		}
+		FillMessagePostFlags(action, peer, msgFlags);
+		if (action.options.scheduled) {
+			msgFlags |= MessageFlag::IsOrWasScheduled;
+		}
+		if (action.options.shortcutId) {
+			msgFlags |= MessageFlag::ShortcutMessage;
+		}
+		const auto starsPaid = std::min(
+			action.options.starsApproved,
+			int(peer->starsPerMessageChecked()));
+		action.options.starsApproved -= starsPaid;
+
+		MTPInputMedia inputMedia;
+		if (const auto photo = media->photo()) {
+			inputMedia = MTP_inputMediaPhoto(
+				MTP_flags(0),
+				photo->mtpInput(),
+				MTPint(), // ttl_seconds
+				MTPInputDocument()); // video_cover
+			history->addNewLocalMessage({
+				.id = newId.msg,
+				.flags = msgFlags,
+				.from = NewMessageFromId(action),
+				.replyTo = action.replyTo,
+				.date = NewMessageDate(action.options),
+				.shortcutId = action.options.shortcutId,
+				.starsPaid = starsPaid,
+				.postAuthor = messagePostAuthor,
+			}, photo, caption);
+		} else {
+			const auto document = media->document();
+			Expects(document != nullptr);
+			inputMedia = MTP_inputMediaDocument(
+				MTP_flags(0),
+				document->mtpInput(),
+				MTPInputPhoto(), // video_cover
+				MTPint(), // ttl_seconds
+				MTPint(), // video_timestamp
+				MTPstring()); // query
+			history->addNewLocalMessage({
+				.id = newId.msg,
+				.flags = msgFlags,
+				.from = NewMessageFromId(action),
+				.replyTo = action.replyTo,
+				.date = NewMessageDate(action.options),
+				.shortcutId = action.options.shortcutId,
+				.starsPaid = starsPaid,
+				.postAuthor = messagePostAuthor,
+			}, document, caption);
+		}
+
+		using MediaFlag = MTPmessages_SendMedia::Flag;
+		const auto sendMediaFlags = MediaFlag(0)
+			| (action.replyTo ? MediaFlag::f_reply_to : MediaFlag(0))
+			| (silentPost ? MediaFlag::f_silent : MediaFlag(0))
+			| (sendAs ? MediaFlag::f_send_as : MediaFlag(0))
+			| (!sentEntities.v.isEmpty() ? MediaFlag::f_entities : MediaFlag(0))
+			| (action.options.scheduled ? MediaFlag::f_schedule_date : MediaFlag(0))
+			| (action.options.shortcutId
+				? MediaFlag::f_quick_reply_shortcut
+				: MediaFlag(0))
+			| (action.options.effectId ? MediaFlag::f_effect : MediaFlag(0))
+			| (action.options.suggest ? MediaFlag::f_suggested_post : MediaFlag(0))
+			| (starsPaid ? MediaFlag::f_allow_paid_stars : MediaFlag(0));
+		const auto scheduled = action.options.scheduled;
+		histories.sendPreparedMessage(
+			history,
+			action.replyTo,
+			uint64(0), // randomId
+			Data::Histories::PrepareMessage<MTPmessages_SendMedia>(
+				MTP_flags(sendMediaFlags),
+				peer->input(),
+				Data::Histories::ReplyToPlaceholder(),
+				inputMedia,
+				MTP_string(caption.text),
+				MTP_long(randomId),
+				MTPReplyMarkup(),
+				sentEntities,
+				MTP_int(action.options.scheduled),
+				MTP_int(action.options.scheduleRepeatPeriod),
+				(sendAs ? sendAs->input() : MTP_inputPeerEmpty()),
+				Data::ShortcutIdToMTP(
+					&history->session(),
+					action.options.shortcutId),
+				MTP_long(action.options.effectId),
+				MTP_long(starsPaid),
+				Api::SuggestToMTP(action.options.suggest)
+			),
+			[=](const MTPUpdates &result, const MTP::Response &) {
+				if (!scheduled) {
+					_session->api().updates().checkForSentToScheduled(result);
+				}
+				if (shared && !--shared->requestsLeft) {
+					shared->callback();
+				}
+			},
+			[=](const MTP::Error &error, const MTP::Response &) {
+				sendMessageFail(error, peer, randomId, newId);
+			});
+	};
+
+	const auto sendAccumulated = [&] {
+		if (isGrouped()) {
+			forwardAlbumUnquoted();
+		} else {
+			for (auto i = fromIter, e = toIter; i != e; i++) {
+				const auto item = *i;
+				const auto media = item->media();
+				if (media && media->canBeGrouped()) {
+					forwardMediaUnquoted(item);
+				} else {
+					forwardQuotedSingle(item);
+				}
+			}
+		}
+
+		ids.resize(0);
+		randomIds.resize(0);
+	};
+
+	ids.reserve(count);
+	randomIds.reserve(count);
+	for (auto i = draft.items.begin(), e = draft.items.end(); i != e; /* ++i is in the end */) {
+		const auto item = *i;
+		const auto randomId = base::RandomValue<uint64>();
+		if (needNextGroup(item)) {
+			sendAccumulated();
+			messageGroupCount = 0;
+			forwardFrom = item->history()->peer;
+			fromIter = i;
+		}
+		ids.push_back(MTP_int(item->id));
+		randomIds.push_back(MTP_long(randomId));
+		if (item->media() && item->media()->canBeGrouped()) {
+			lastGroup = ((item->media()->photo()
+					|| (item->media()->document()
+						&& item->media()->document()->isVideoFile()))
+				? LastGroupType::Medias
+				: (item->media()->document()
+					&& item->media()->document()->isSong())
+				? LastGroupType::Music
+				: LastGroupType::Documents);
+		} else {
+			lastGroup = LastGroupType::None;
+		}
+		toIter = ++i;
+		messageGroupCount++;
 	}
 	sendAccumulated();
 	_session->data().sendHistoryChangeNotifications();

@@ -86,6 +86,7 @@ class ChooseThemeController;
 class ElasticScroll;
 struct ChatPaintHighlight;
 class ChatStyle;
+class PopupMenu;
 template <typename Widget>
 class SlideWrap;
 } // namespace Ui
@@ -806,6 +807,8 @@ private:
 	mutable base::Timer _updateEditTimeLeftDisplay;
 
 	std::unique_ptr<HistoryView::SuggestOptionsBar> _suggestOptions;
+
+	base::unique_qptr<Ui::PopupMenu> _menu;
 
 	object_ptr<Ui::IconButton> _fieldBarCancel;
 

@@ -26,6 +26,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/components/scheduled_messages.h"
 #include "data/components/sponsored_messages.h"
 #include "data/components/top_peers.h"
+#include "ayu/ayu_settings.h"
 #include "data/notify/data_notify_settings.h"
 #include "data/stickers/data_stickers.h"
 #include "data/data_cloud_themes.h"
@@ -527,6 +528,7 @@ Data::ResolvedForwardDraft History::resolveForwardDraft(
 	return Data::ResolvedForwardDraft{
 		.items = owner().idsToItems(draft.ids),
 		.options = draft.options,
+		.groupOptions = draft.groupOptions,
 	};
 }
 
@@ -539,6 +541,7 @@ Data::ResolvedForwardDraft History::resolveForwardDraft(
 		setForwardDraft(topicRootId, monoforumPeerId, {
 			.ids = owner().itemsToIds(result.items),
 			.options = result.options,
+			.groupOptions = result.groupOptions,
 		});
 	}
 	return result;
@@ -553,6 +556,19 @@ void History::setForwardDraft(
 	if (draft.ids.empty()) {
 		changed = _forwardDrafts.remove(key);
 	} else {
+		// AyuGram-changed: apply persistent forward defaults to fresh drafts.
+		const auto i = _forwardDrafts.find(key);
+		if ((i == end(_forwardDrafts)) || i->second.ids.empty()) {
+			const auto &settings = AyuSettings::getInstance();
+			if (draft.options == Data::ForwardOptions::PreserveInfo) {
+				draft.options = static_cast<Data::ForwardOptions>(
+					std::clamp(settings.forwardMode(), 0, 2));
+			}
+			if (draft.groupOptions == Data::GroupingOptions::GroupAsIs) {
+				draft.groupOptions = static_cast<Data::GroupingOptions>(
+					std::clamp(settings.forwardGroupingMode(), 0, 2));
+			}
+		}
 		auto &now = _forwardDrafts[key];
 		if (now != draft) {
 			now = std::move(draft);
