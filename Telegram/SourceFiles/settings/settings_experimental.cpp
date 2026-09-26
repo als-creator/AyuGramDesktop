@@ -43,6 +43,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_actions.h"
 #include "info/profile/tabs/adapters/info_profile_tab_media.h"
 #include "info/profile/tabs/info_profile_tabs_host.h"
+#include "lang/lang_instance.h"
 #include "lang/lang_keys.h"
 #include "mainwindow.h"
 #include "mainwidget.h"
@@ -75,6 +76,201 @@ namespace Settings {
 namespace {
 
 const auto kOptionsClipboardPrefix = u"tdesktop-flags:"_q;
+
+// format: { key, { name, description }}
+const std::map<QString, std::pair<QString, QString>> TranslationMap {
+	{ Dialogs::kOptionForumHideChatsList, {
+		"ayu_experimental_forum_hide_chats_list",
+		"ayu_experimental_forum_hide_chats_list_description",
+	}},
+	{ Dialogs::kOptionDialogsUnreadOnTop, {
+		"ayu_experimental_dialogs_unread_on_top",
+		"ayu_experimental_dialogs_unread_on_top_description",
+	}},
+	{ Dialogs::Ui::kOptionDialogsMuteIcon, {
+		"ayu_experimental_dialogs_mute_icon",
+		"ayu_experimental_dialogs_mute_icon_description",
+	}},
+	{ kOptionAutoScrollInactiveChat, {
+		"ayu_experimental_auto_scroll_inactive_chat",
+		"ayu_experimental_auto_scroll_inactive_chat_description",
+	}},
+	{ kModerateCommonGroups, {
+		"ayu_experimental_moderate_common_groups",
+		"",
+	}},
+	{ Info::kClassicProfileScroll, {
+		"ayu_experimental_classic_profile_scroll",
+		"ayu_experimental_classic_profile_scroll_description",
+	}},
+	{ Ui::kOptionUseSmallMsgBubbleRadius, {
+		"ayu_experimental_use_small_msg_bubble_radius",
+		"ayu_experimental_use_small_msg_bubble_radius_description",
+	}},
+	{ HistoryView::kOptionUnlimitedMessageWidth, {
+		"ayu_experimental_unlimited_message_width",
+		"ayu_experimental_unlimited_message_width_description",
+	}},
+	{ HistoryView::Controls::kOptionMacCmdReplyImmediately, {
+		"ayu_experimental_mac_cmd_reply_immediately",
+		"ayu_experimental_mac_cmd_reply_immediately_description",
+	}},
+	{ Ui::kOptionHideAiButton, {
+		"ayu_experimental_hide_ai_button",
+		"ayu_experimental_hide_ai_button_description",
+	}},
+	{ kForceComposeSearchOneColumn, {
+		"ayu_experimental_force_compose_search_one_column",
+		"ayu_experimental_force_compose_search_one_column_description",
+	}},
+	{ Window::kOptionViewProfileInChatsListContextMenu, {
+		"ayu_experimental_view_profile_context_menu",
+		"ayu_experimental_view_profile_context_menu_description",
+	}},
+	{ Info::Profile::kOptionShowPeerIdBelowAbout, {
+		"ayu_experimental_show_peer_id_below_about",
+		"ayu_experimental_show_peer_id_below_about_description",
+	}},
+	{ Info::Profile::kOptionShowChannelJoinedBelowAbout, {
+		"ayu_experimental_show_channel_joined_below_about",
+		"ayu_experimental_show_channel_joined_below_about_description",
+	}},
+	{ Info::Profile::kOptionProfileMediaTabs, {
+		"ayu_experimental_profile_media_tabs",
+		"ayu_experimental_profile_media_tabs_description",
+	}},
+	{ Info::Profile::kOptionProfileMediaTabsExpanded, {
+		"ayu_experimental_profile_media_tabs_expanded",
+		"ayu_experimental_profile_media_tabs_expanded_description",
+	}},
+	{ ChatHelpers::kOptionTabbedPanelShowOnClick, {
+		"ayu_experimental_tabbed_panel_show_on_click",
+		"ayu_experimental_tabbed_panel_show_on_click_description",
+	}},
+	{ ChatHelpers::kOptionUnlimitedRecentStickers, {
+		"ayu_experimental_unlimited_recent_stickers",
+		"ayu_experimental_unlimited_recent_stickers_description",
+	}},
+	{ Media::Player::kOptionDisableAutoplayNext, {
+		"ayu_experimental_disable_autoplay_next",
+		"ayu_experimental_disable_autoplay_next_description",
+	}},
+	{ Window::kOptionExternalMediaViewer, {
+		"ayu_experimental_external_media_viewer",
+		"ayu_experimental_external_media_viewer_description",
+	}},
+	{ FFmpeg::kOptionFFmpegMultiThread, {
+		"ayu_experimental_ffmpeg_multithread",
+		"ayu_experimental_ffmpeg_multithread_description",
+	}},
+	{ Window::Notifications::kOptionHideReplyButton, {
+		"ayu_experimental_hide_reply_button",
+		"ayu_experimental_hide_reply_button_description",
+	}},
+	{ Window::Notifications::kOptionCustomNotification, {
+		"ayu_experimental_custom_notification",
+		"ayu_experimental_custom_notification_description",
+	}},
+	{ Window::Notifications::kOptionGNotification, {
+		"ayu_experimental_g_notification",
+		"ayu_experimental_g_notification_description",
+	}},
+	{ Window::Notifications::kOptionMacModernNotifications, {
+		"ayu_experimental_mac_modern_notifications",
+		"ayu_experimental_mac_modern_notifications_description",
+	}},
+	{ Core::kOptionFractionalScalingEnabled, {
+		"ayu_experimental_fractional_scaling_enabled",
+		"ayu_experimental_fractional_scaling_enabled_description",
+	}},
+	{ Core::kOptionHighDpiDownscale, {
+		"ayu_experimental_high_dpi_downscale",
+		"ayu_experimental_high_dpi_downscale_description",
+	}},
+	{ Ui::GL::kOptionUseQtRhi, {
+		"ayu_experimental_use_qt_rhi",
+		"ayu_experimental_use_qt_rhi_description",
+	}},
+	{ Ui::GL::kOptionEnableVulkanRhi, {
+		"ayu_experimental_enable_vulkan_rhi",
+		"ayu_experimental_enable_vulkan_rhi_description",
+	}},
+	{ Core::kOptionFreeType, {
+		"ayu_experimental_freetype",
+		"ayu_experimental_freetype_description",
+	}},
+	{ Ui::kOptionQScroller, {
+		"ayu_experimental_qscroller",
+		"ayu_experimental_qscroller_description",
+	}},
+	{ Window::kOptionDisableTouchbar, {
+		"ayu_experimental_disable_touchbar",
+		"",
+	}},
+	{ Window::kOptionNewWindowsSizeAsFirst, {
+		"ayu_experimental_new_windows_size_as_first",
+		"ayu_experimental_new_windows_size_as_first_description",
+	}},
+	{ MTP::details::kOptionPreferIPv6, {
+		"ayu_experimental_prefer_ipv6",
+		"ayu_experimental_prefer_ipv6_description",
+	}},
+	{ Core::kOptionSkipUrlSchemeRegister, {
+		"ayu_experimental_skip_url_scheme_register",
+		"ayu_experimental_skip_url_scheme_register_description",
+	}},
+	{ Core::kOptionDeadlockDetector, {
+		"ayu_experimental_deadlock_detector",
+		"ayu_experimental_deadlock_detector_description",
+	}},
+	{ Webview::kOptionWebviewDebugEnabled, {
+		"ayu_experimental_webview_debug_enabled",
+		"ayu_experimental_webview_debug_enabled_description",
+	}},
+	{ Webview::kOptionWebviewLegacyEdge, {
+		"ayu_experimental_webview_legacy_edge",
+		"ayu_experimental_webview_legacy_edge_description",
+	}},
+	{ kOptionFastButtonsMode, {
+		"ayu_experimental_fast_buttons_mode",
+		"ayu_experimental_fast_buttons_mode_description",
+	}},
+	{ Window::kOptionFolderFavoriteLink, {
+		"ayu_experimental_folder_favorite_link",
+		"ayu_experimental_folder_favorite_link_description",
+	}},
+};
+
+// format: { category title, translation key }
+const std::map<QString, QString> CategoryTitleMap {
+	{ u"Chats"_q, u"ayu_experimental_category_chats"_q },
+	{ u"Messages"_q, u"ayu_experimental_category_messages"_q },
+	{ u"Profile"_q, u"ayu_experimental_category_profile"_q },
+	{ u"Stickers and emoji"_q, u"ayu_experimental_category_stickers_and_emoji"_q },
+	{ u"Media"_q, u"ayu_experimental_category_media"_q },
+	{ u"Notifications"_q, u"ayu_experimental_category_notifications"_q },
+	{ u"Interface"_q, u"ayu_experimental_category_interface"_q },
+	{ u"System"_q, u"ayu_experimental_category_system"_q },
+	{ u"Other"_q, u"ayu_experimental_category_misc"_q },
+};
+
+[[nodiscard]] QString TranslatedExperimental(
+		const QString &key,
+		const QString &fallback) {
+	const auto translated = Lang::GetInstance().getNonDefaultValue(
+		key.toUtf8());
+	return translated.isEmpty() ? fallback : translated;
+}
+
+[[nodiscard]] QString TranslatedCategoryTitle(const QString &title) {
+	const auto translation = CategoryTitleMap.find(title);
+	const auto key = (translation != end(CategoryTitleMap))
+		? translation->second
+		: QString();
+	return key.isEmpty()
+		? title
+		: TranslatedExperimental(key, title);
+}
 
 struct DecodeOptionsResult {
 	bool ok = false;
@@ -254,8 +450,18 @@ QString AddOption(
 		rpl::producer<> reloadOptionsRequests,
 		rpl::producer<QString> query,
 		Fn<void(const QString&, not_null<QWidget*>)> registerHighlight) {
-	const auto name = option.name().isEmpty() ? option.id() : option.name();
-	const auto &description = option.description();
+	const auto translation = TranslationMap.find(option.id());
+	const auto name = (translation != TranslationMap.end())
+		? TranslatedExperimental(
+			translation->second.first,
+			option.name().isEmpty() ? option.id() : option.name())
+		: (option.name().isEmpty() ? option.id() : option.name());
+	const auto &description = (translation != TranslationMap.end()
+		&& !translation->second.second.isEmpty())
+			? TranslatedExperimental(
+				translation->second.second,
+				option.description())
+			: option.description();
 
 	const auto wrap = container->add(
 		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
@@ -354,10 +560,20 @@ QString AddFavoriteLinkButton(
 		Fn<void(const QString&, not_null<QWidget*>)> registerHighlight) {
 	const auto option = &base::options::lookup<QString>(
 		Window::kOptionFolderFavoriteLink);
-	const auto name = option->name().isEmpty()
-		? option->id()
-		: option->name();
-	const auto &description = option->description();
+	const auto translation = TranslationMap.find(option->id());
+	const auto name = (translation != TranslationMap.end())
+		? TranslatedExperimental(
+			translation->second.first,
+			option->name().isEmpty()
+				? option->id()
+				: option->name())
+		: (option->name().isEmpty() ? option->id() : option->name());
+	const auto &description = (translation != TranslationMap.end()
+		&& !translation->second.second.isEmpty())
+			? TranslatedExperimental(
+				translation->second.second,
+				option->description())
+			: option->description();
 
 	const auto wrap = container->add(
 		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
@@ -580,7 +796,7 @@ void SetupExperimental(
 	};
 
 	for (const auto &category : categories) {
-		addCategory(category.title, [&](
+		addCategory(TranslatedCategoryTitle(category.title), [&](
 				not_null<Ui::VerticalLayout*> inner,
 				std::vector<QString> &searchable) {
 			for (const auto name : category.options) {
@@ -589,7 +805,7 @@ void SetupExperimental(
 		});
 	}
 
-	addCategory(u"Other"_q, [&](
+	addCategory(TranslatedCategoryTitle(u"Other"_q), [&](
 			not_null<Ui::VerticalLayout*> inner,
 			std::vector<QString> &searchable) {
 		if (base::options::lookup<bool>(kOptionFastButtonsMode).value()) {
