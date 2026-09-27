@@ -615,14 +615,17 @@ void ShareBox::showMenu(not_null<Ui::RpWidget*> parent) {
 			item->init(_groupOptions == option);
 			const auto view = item->checkView();
 			_menu->addAction(std::move(item));
-			view->setClickedCallback([=] {
+			view->checkedChanges(
+			) | rpl::filter([](bool checked) {
+				return checked;
+			}) | rpl::on_next([=] {
 				_groupOptions = option;
 				// AyuGram-changed: remember grouping on explicit toggle.
 				if (AyuSettings::getInstance().forwardRememberMode()) {
 					AyuSettings::getInstance().setForwardGroupingMode(
 						static_cast<int>(option));
 				}
-			});
+			}, _menu->lifetime());
 		};
 		addGroupingOption(
 			GOptions::GroupAsIs,
