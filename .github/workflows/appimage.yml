@@ -187,13 +187,14 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: AyuGram-x86_64.AppImage
-
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: AyuGram-x86_64.AppImage
+          path: appimage
 
       - name: Publish release (actual dev version).
         env:
@@ -217,7 +218,7 @@ jobs:
 
           _Community fork of [AyuGramDesktop](https://github.com/AyuGram/AyuGramDesktop)._"
           gh release create "$TAG" \
-            AyuGram-x86_64.AppImage \
+            appimage/AyuGram-x86_64.AppImage \
             --repo "$REPO" \
             --title "AyuGram v${VER} (dev, compact chats) - build ${{ github.run_number }}" \
             --notes "$NOTES"
