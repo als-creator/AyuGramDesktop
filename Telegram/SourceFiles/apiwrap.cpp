@@ -4208,7 +4208,7 @@ void ApiWrap::forwardMessagesUnquoted(
 	auto forwardFrom = draft.items.front()->history()->peer;
 	auto lastGroup = LastGroupType::None;
 	auto ids = QVector<MTPint>();
-	auto randomIds = QVector<MTPlong>();
+	auto randomIds = QVector<uint64>();
 	auto fromIter = draft.items.begin();
 	auto toIter = draft.items.begin();
 	auto messageGroupCount = 0;
@@ -4624,7 +4624,7 @@ void ApiWrap::forwardMessagesUnquoted(
 			? media->document()->stickerOrGifOrigin()
 			: Data::FileOrigin();
 
-		auto performRequest = [=](const auto &repeatRequest) -> void {
+		auto performRequest = [=, &histories](const auto &repeatRequest) -> void {
 			// Rebuild the media input on every attempt, so retries use the
 			// refreshed file references.
 			MTPInputMedia inputMedia;
@@ -4739,7 +4739,7 @@ void ApiWrap::forwardMessagesUnquoted(
 			fromIter = i;
 		}
 		ids.push_back(MTP_int(item->id));
-		randomIds.push_back(MTP_long(randomId));
+		randomIds.push_back(randomId);
 		if (item->media() && item->media()->canBeGrouped()) {
 			lastGroup = ((item->media()->photo()
 					|| (item->media()->document()
