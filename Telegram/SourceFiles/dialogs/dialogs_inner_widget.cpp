@@ -118,7 +118,10 @@ namespace {
 }
 
 [[nodiscard]] const style::DialogRow *ForumTopicRowStyle() {
-	return AyuSettings::getInstance().chatListCompactTopics()
+	// AyuGram-changed: the compact chat list covers the nested topic list as
+	// well, the separate option enables it without compacting the chats list.
+	const auto &settings = AyuSettings::getInstance();
+	return (settings.chatListCompact() || settings.chatListCompactTopics())
 		? &st::compactForumTopicRow
 		: &st::forumTopicRow;
 }
