@@ -71,6 +71,13 @@ base::options::toggle DialogsMuteIcon({
 
 const auto kPsaBadgePrefix = "cloud_lng_badge_psa_";
 
+// AyuGram-changed: compact rows (both the chat list and the topic list in
+// nested chats) are painted as a single line without the message preview.
+[[nodiscard]] bool IsCompactRowStyle(const style::DialogRow *rowStyle) {
+	return (rowStyle == &st::compactDialogRow)
+		|| (rowStyle == &st::compactForumTopicRow);
+}
+
 [[nodiscard]] bool ShowUserBotIcon(not_null<UserData*> user) {
 	return user->isBot()
 		&& !user->isSupport()
@@ -122,7 +129,7 @@ int PaintRightButtonImpl(QPainter &p, const PaintContext &context) {
 		const auto left = context.width
 			- size.width()
 			- rightButton->st->margin.right();
-		const auto top = (context.st == &st::compactDialogRow)
+		const auto top = IsCompactRowStyle(context.st)
 			? (context.st->height - size.height()) / 2
 			: rightButton->st->margin.top();
 		p.drawImage(
@@ -554,7 +561,7 @@ void PaintRow(
 			videoUserpic,
 			context,
 			(context.narrow
-				&& (context.st != &st::compactDialogRow)
+				&& !IsCompactRowStyle(context.st)
 				&& !badgesState.empty()
 				&& !draft
 				&& item
@@ -569,7 +576,7 @@ void PaintRow(
 		if (!draft
 			&& item
 			&& (!itemIsEmpty || showFilteredItem)
-			&& (context.st != &st::compactDialogRow)) {
+			&& !IsCompactRowStyle(context.st)) {
 			PaintNarrowCounter(p, context, badgesState);
 		}
 		return;
@@ -621,7 +628,7 @@ void PaintRow(
 		}
 	}
 	auto texttop = context.st->textTop;
-	if (context.st == &st::compactDialogRow) {
+	if (IsCompactRowStyle(context.st)) {
 		// Compact chat list: single line, no message preview, counter only.
 		// Name shares the line with the counter, so shrink it accordingly.
 		const auto displayPinnedIcon = badgesState.empty()
