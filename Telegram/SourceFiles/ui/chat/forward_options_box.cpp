@@ -63,4 +63,35 @@ void FillForwardOptions(
 	}
 }
 
+void FillGroupingOptions(
+		Fn<not_null<AbstractCheckView*>(
+			rpl::producer<QString> &&,
+			bool)> createView,
+		Data::GroupingOptions options,
+		Fn<void(Data::GroupingOptions)> optionsChanged,
+		rpl::lifetime &lifetime) {
+	Expects(optionsChanged != nullptr);
+
+	const auto addOption = [=](
+			Data::GroupingOptions option,
+			rpl::producer<QString> &&text) {
+		const auto view = createView(std::move(text), options == option);
+		view->checkedChanges(
+		) | rpl::filter([](bool checked) {
+			return checked;
+		}) | rpl::on_next([=] {
+			optionsChanged(option);
+		}, lifetime);
+	};
+	addOption(
+		Data::GroupingOptions::GroupAsIs,
+		tr::ayu_ForwardGroupingMode_PreserveAlbums());
+	addOption(
+		Data::GroupingOptions::RegroupAll,
+		tr::ayu_ForwardGroupingMode_Regroup());
+	addOption(
+		Data::GroupingOptions::Separate,
+		tr::ayu_ForwardGroupingMode_Separate());
+}
+
 } // namespace Ui
