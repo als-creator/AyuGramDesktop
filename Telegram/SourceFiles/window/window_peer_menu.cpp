@@ -131,6 +131,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_boxes.h"
 #include "styles/style_share_box.h"
 #include "styles/style_window.h" // st::windowMinWidth
+#include "styles/style_info.h" // st::infoTopBarMenu
 #include "styles/style_menu_icons.h"
 #include "styles/style_premium.h"
 
@@ -3131,16 +3132,16 @@ base::weak_qptr<Ui::BoxContent> ShowForwardMessagesBox(
 			if (showLockedError(row)
 				|| (count && (forum || monoforum || community))) {
 				return;
-			} else if (!count || forum || monoforum || community) {
-				if (base::IsCtrlPressed() || base::IsShiftPressed()) {
-					delegate()->peerListSetRowChecked(row, !row->checked());
-					_selectionChanges.fire({});
-				} else {
-					ChooseRecipientBoxController::rowClicked(row);
-				}
-			} else if (count) {
+			} else if (base::IsCtrlPressed()
+				|| base::IsShiftPressed()
+				|| !(forum || monoforum || community)) {
+				// AyuGram-changed: a plain click adds the peer to the
+				// selection instead of opening the chat right away, the
+				// forward is confirmed with the send button of the box.
 				delegate()->peerListSetRowChecked(row, !row->checked());
 				_selectionChanges.fire({});
+			} else {
+				ChooseRecipientBoxController::rowClicked(row);
 			}
 		}
 
@@ -3522,6 +3523,17 @@ base::weak_qptr<Ui::BoxContent> ShowForwardMessagesBox(
 			state->menu->popup(QCursor::pos());
 		}
 	};
+
+	// AyuGram-changed: a top button that opens the same send menu, so the
+	// forward options are reachable without a right click on the send
+	// button. The button is only added when there are options to show.
+	if (showForwardOptions) {
+		const auto menuButton = state->box->addTopButton(
+			st::infoTopBarMenu);
+		menuButton->setClickedCallback([=] {
+			showMenu(menuButton);
+		});
+	}
 
 	state->refreshStarsToSend = [=] {
 		auto perMessage = 0;
