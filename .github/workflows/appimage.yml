@@ -156,7 +156,7 @@ jobs:
             '[Desktop Entry]' \
             'Type=Application' \
             'Name=AyuGram (dev)' \
-            'Comment=Rolling AyuGram dev build with the Kotatogram features ported' \
+            'Comment=Rolling AyuGram dev build' \
             'Exec=AyuGram' \
             'Icon=com.ayugram.desktop' \
             'Terminal=false' \
