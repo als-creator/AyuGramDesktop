@@ -45,6 +45,13 @@ void BuildChatsList(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 		.setter = &AyuSettings::setChatListCompact,
 	});
 
+	ayu.addSettingToggle({
+		.id = u"ayu/chatListCompactTopics"_q,
+		.title = tr::ayu_ChatListCompactTopics(),
+		.getter = &AyuSettings::chatListCompactTopics,
+		.setter = &AyuSettings::setChatListCompactTopics,
+	});
+
 	ayu.addSectionDivider();
 }
 

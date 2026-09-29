@@ -117,6 +117,12 @@ namespace {
 		: &st::defaultDialogRow;
 }
 
+[[nodiscard]] const style::DialogRow *ForumTopicRowStyle() {
+	return AyuSettings::getInstance().chatListCompactTopics()
+		? &st::compactForumTopicRow
+		: &st::forumTopicRow;
+}
+
 constexpr auto kFreezeTimeout = 2 * crl::time(1000);
 constexpr auto kHashtagResultsLimit = 5;
 constexpr auto kStartReorderThreshold = 30;
@@ -423,7 +429,17 @@ InnerWidget::InnerWidget(
 
 	AyuSettings::getInstance().chatListCompactChanges(
 	) | rpl::on_next([=] {
-		_st = _openedForum ? &st::forumTopicRow : DefaultRowStyle();
+		_st = _openedForum ? ForumTopicRowStyle() : DefaultRowStyle();
+		_narrowWidth = DefaultRowStyle()->padding.left()
+			+ DefaultRowStyle()->photoSize
+			+ DefaultRowStyle()->padding.left();
+		_shownList->updateHeights(_narrowRatio);
+		refreshWithCollapsedRows();
+	}, lifetime());
+
+	AyuSettings::getInstance().chatListCompactTopicsChanges(
+	) | rpl::on_next([=] {
+		_st = _openedForum ? ForumTopicRowStyle() : DefaultRowStyle();
 		_narrowWidth = DefaultRowStyle()->padding.left()
 			+ DefaultRowStyle()->photoSize
 			+ DefaultRowStyle()->padding.left();
@@ -907,7 +923,7 @@ void InnerWidget::changeOpenedForum(Data::Forum *forum) {
 		session().data().forumIcons().scheduleUserpicsReset(_openedForum);
 	}
 	_openedForum = forum;
-	_st = forum ? &st::forumTopicRow : DefaultRowStyle();
+	_st = forum ? ForumTopicRowStyle() : DefaultRowStyle();
 	refreshShownList();
 	if (!forum && _openedCommunity) {
 		rebuildCommunitySections();
@@ -1105,7 +1121,8 @@ void InnerWidget::paintEvent(QPaintEvent *e) {
 			}
 		}
 
-		const auto compact = (_st.get() == &st::compactDialogRow);
+		const auto compact = (_st.get() == &st::compactDialogRow)
+			|| (_st.get() == &st::compactForumTopicRow);
 		context.st = (!compact && (forum || monoforum))
 			? &st::forumDialogRow
 			: _st.get();

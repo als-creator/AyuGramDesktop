@@ -358,7 +358,14 @@ Row::~Row() {
 const style::DialogRow &Row::ComputeSt(
 		not_null<const Entry*> entry,
 		FilterId filterId) {
-	if (AyuSettings::getInstance().chatListCompact()) {
+	const auto &settings = AyuSettings::getInstance();
+	if (entry->asTopic()) {
+		// AyuGram-changed: compact topic list in nested chats.
+		return settings.chatListCompactTopics()
+			? st::compactForumTopicRow
+			: st::forumTopicRow;
+	}
+	if (settings.chatListCompact()) {
 		return st::compactDialogRow;
 	}
 	if (const auto history = entry->asHistory()) {
@@ -370,8 +377,6 @@ const style::DialogRow &Row::ComputeSt(
 			: hasTags
 			? st::taggedDialogRow
 			: st::defaultDialogRow;
-	} else if (entry->asTopic()) {
-		return st::forumTopicRow;
 	}
 	return st::defaultDialogRow;
 }
@@ -380,6 +385,8 @@ void Row::recountHeight(float64 narrowRatio, FilterId filterId) {
 	const auto &st = ComputeSt(_id.entry(), filterId);
 	_height = (&st == &st::compactDialogRow)
 		? st::compactDialogRow.height
+		: (&st == &st::compactForumTopicRow) // AyuGram-changed.
+		? st::compactForumTopicRow.height
 		: ((&st == &st::defaultDialogRow) || !_id.history())
 		? st::defaultDialogRow.height
 		: anim::interpolate(
