@@ -19,6 +19,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/multi_select.h"
 #include "ui/widgets/scroll_area.h"
+#include "ui/widgets/buttons.h"
+#include "ui/widgets/dropdown_menu.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/widgets/popup_menu.h"
 #include "ui/wrap/slide_wrap.h"
@@ -62,6 +64,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_calls.h"
 #include "styles/style_chat_helpers.h"
 #include "styles/style_layers.h"
+#include "styles/style_media_player.h" // mediaPlayerMenuCheck
 #include "styles/style_share_box.h"
 
 #include <QtGui/QGuiApplication>
@@ -71,6 +74,49 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ayu/features/forward/ayu_forward.h"
 #include "ayu/ayu_settings.h"
 
+
+namespace {
+
+// AyuGram-changed: ported from Kotatogram. A menu action with a check that
+// behaves like a radio button: the chosen option can not be unchecked back.
+class ForwardOptionItem final : public Ui::Menu::Action {
+public:
+	using Ui::Menu::Action::Action;
+
+	void init(bool checked) {
+		enableMouseSelecting();
+
+		AbstractButton::setDisabled(true);
+
+		_checkView = std::make_unique<Ui::ToggleView>(
+			st::defaultToggle,
+			false);
+		_checkView->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			setIcon(checked ? &st::mediaPlayerMenuCheck : nullptr);
+		}, lifetime());
+
+		_checkView->setLocked(checked);
+		_checkView->setChecked(checked, anim::type::normal);
+		AbstractButton::clicks(
+		) | rpl::on_next([=] {
+			if (!_checkView->isLocked()) {
+				_checkView->setChecked(
+					!_checkView->checked(),
+					anim::type::normal);
+			}
+		}, lifetime());
+	}
+
+	not_null<Ui::ToggleView*> checkView() const {
+		return _checkView.get();
+	}
+
+private:
+	std::unique_ptr<Ui::ToggleView> _checkView;
+};
+
+} // namespace
 
 class ShareBox::Inner final : public Ui::RpWidget {
 public:
@@ -296,6 +342,23 @@ void ShareBox::prepare() {
 	setTitle(_descriptor.titleOverride
 		? std::move(_descriptor.titleOverride)
 		: tr::lng_share_title());
+
+	// AyuGram-changed: read persistent forward defaults once, so that the
+	// chosen mode/grouping stays for the whole lifetime of this dialog and
+	// is not reset back every time the selected peers change.
+	{
+		const auto &settings = AyuSettings::getInstance();
+		const auto mode = std::clamp(settings.forwardMode(), 0, 2);
+		_forwardOptions.sendersCount
+			= _descriptor.forwardOptions.sendersCount;
+		_forwardOptions.captionsCount
+			= _descriptor.forwardOptions.captionsCount;
+		_forwardOptions.dropNames = (mode != 0);
+		_forwardOptions.dropCaptions = (mode == 2);
+		_groupOptions = static_cast<Data::GroupingOptions>(
+			std::clamp(settings.forwardGroupingMode(), 0, 2));
+	}
+	updateAdditionalTitle();
 
 	_inner = setInnerWidget(
 		object_ptr<Inner>(this, _descriptor, uiShow()),
@@ -591,6 +654,7 @@ void ShareBox::showMenu(not_null<Ui::RpWidget*> parent) {
 						? (value.dropCaptions ? 2 : 1)
 						: 0);
 				}
+				updateAdditionalTitle();
 			},
 			_menu->lifetime());
 
@@ -625,6 +689,7 @@ void ShareBox::showMenu(not_null<Ui::RpWidget*> parent) {
 					AyuSettings::getInstance().setForwardGroupingMode(
 						static_cast<int>(option));
 				}
+				updateAdditionalTitle();
 			}, _menu->lifetime());
 		};
 		addGroupingOption(
@@ -673,8 +738,252 @@ void ShareBox::showMenu(not_null<Ui::RpWidget*> parent) {
 	}
 }
 
+void ShareBox::showForwardMenu(not_null<Ui::IconButton*> button) {
+	// AyuGram-changed: forward mode / media grouping menu in the top right
+	// corner of the forward box, like in Kotatogram.
+	if (_topMenu) {
+		_topMenu->hideAnimated(Ui::InnerDropdown::HideOption::IgnoreShow);
+		return;
+	}
+
+	_topMenu = base::make_unique_q<Ui::DropdownMenu>(window());
+	const auto weak = _topMenu.get();
+	_topMenu->setHiddenCallback([=] {
+		weak->deleteLater();
+		if (_topMenu == weak) {
+			button->setForceRippled(false);
+		}
+	});
+	_topMenu->setShowStartCallback([=] {
+		if (_topMenu == weak) {
+			button->setForceRippled(true);
+		}
+	});
+	_topMenu->setHideStartCallback([=] {
+		if (_topMenu == weak) {
+			button->setForceRippled(false);
+		}
+	});
+	button->installEventFilter(_topMenu);
+
+	const auto createView = [&](rpl::producer<QString> &&text, bool checked) {
+		auto item = base::make_unique_q<ForwardOptionItem>(
+			_topMenu->menu(),
+			st::popupMenuWithIcons.menu,
+			Ui::CreateChild<QAction>(_topMenu->menu().get()),
+			nullptr,
+			nullptr);
+		std::move(
+			text
+		) | rpl::on_next([action = item->action()](QString text) {
+			action->setText(text);
+		}, item->lifetime());
+		item->init(checked);
+		const auto view = item->checkView();
+		_topMenu->addAction(std::move(item));
+		return view;
+	};
+
+	// The options are mutually exclusive, so the active one is locked and
+	// can not be unchecked back, only replaced by another one.
+	const auto updating = std::make_shared<bool>(false);
+	const auto forwardMode = std::make_shared<int>(
+		(_forwardOptions.dropCaptions)
+		? 2
+		: (_forwardOptions.dropNames)
+		? 1
+		: 0);
+	const auto groupMode = std::make_shared<int>(
+		(_groupOptions == Data::GroupingOptions::Separate)
+		? 2
+		: (_groupOptions == Data::GroupingOptions::RegroupAll)
+		? 1
+		: 0);
+
+	const auto quoted = createView(
+		tr::ayu_ForwardMenu_Quoted(),
+		(*forwardMode == 0));
+	const auto noNames = createView(
+		tr::ayu_ForwardMenu_Unquoted(),
+		(*forwardMode == 1));
+	const auto noCaptions = createView(
+		tr::ayu_ForwardMenu_Uncaptioned(),
+		(*forwardMode == 2));
+
+	const auto applyForward = [=](int mode) {
+		*updating = true;
+		quoted->setLocked(mode == 0);
+		noNames->setLocked(mode == 1);
+		noCaptions->setLocked(mode == 2);
+		quoted->setChecked(mode == 0, anim::type::normal);
+		noNames->setChecked(mode == 1, anim::type::normal);
+		noCaptions->setChecked(mode == 2, anim::type::normal);
+		*updating = false;
+	};
+
+	const auto onForwardOptionChange = [=, this](int mode, bool value) {
+		if (*updating) {
+			return;
+		}
+		if (!value) {
+			// The active option is locked, restore the check.
+			applyForward(*forwardMode);
+			return;
+		}
+		*forwardMode = mode;
+		applyForward(mode);
+		_forwardOptions.dropNames = (mode != 0);
+		_forwardOptions.dropCaptions = (mode == 2);
+		// AyuGram-changed: keep the chosen mode until it is changed back.
+		if (AyuSettings::getInstance().forwardRememberMode()) {
+			AyuSettings::getInstance().setForwardMode(mode);
+		}
+		updateAdditionalTitle();
+	};
+
+	quoted->checkedChanges(
+	) | rpl::on_next([=](bool value) {
+		onForwardOptionChange(0, value);
+	}, _topMenu->lifetime());
+
+	noNames->checkedChanges(
+	) | rpl::on_next([=](bool value) {
+		onForwardOptionChange(1, value);
+	}, _topMenu->lifetime());
+
+	noCaptions->checkedChanges(
+	) | rpl::on_next([=](bool value) {
+		onForwardOptionChange(2, value);
+	}, _topMenu->lifetime());
+
+	_topMenu->addSeparator();
+
+	const auto groupAsIs = createView(
+		tr::ayu_ForwardGroupingMode_PreserveAlbums(),
+		(*groupMode == 0));
+	const auto groupAll = createView(
+		tr::ayu_ForwardGroupingMode_Regroup(),
+		(*groupMode == 1));
+	const auto groupNone = createView(
+		tr::ayu_ForwardGroupingMode_Separate(),
+		(*groupMode == 2));
+
+	const auto applyGrouping = [=](int mode) {
+		*updating = true;
+		groupAsIs->setLocked(mode == 0);
+		groupAll->setLocked(mode == 1);
+		groupNone->setLocked(mode == 2);
+		groupAsIs->setChecked(mode == 0, anim::type::normal);
+		groupAll->setChecked(mode == 1, anim::type::normal);
+		groupNone->setChecked(mode == 2, anim::type::normal);
+		*updating = false;
+	};
+
+	const auto onGroupOptionChange = [=, this](int mode, bool value) {
+		if (*updating) {
+			return;
+		}
+		if (!value) {
+			// The active option is locked, restore the check.
+			applyGrouping(*groupMode);
+			return;
+		}
+		*groupMode = mode;
+		applyGrouping(mode);
+		_groupOptions = (mode == 2)
+			? Data::GroupingOptions::Separate
+			: (mode == 1)
+			? Data::GroupingOptions::RegroupAll
+			: Data::GroupingOptions::GroupAsIs;
+		// AyuGram-changed: keep the chosen grouping until it is changed back.
+		if (AyuSettings::getInstance().forwardRememberMode()) {
+			AyuSettings::getInstance().setForwardGroupingMode(mode);
+		}
+		updateAdditionalTitle();
+	};
+
+	groupAsIs->checkedChanges(
+	) | rpl::on_next([=](bool value) {
+		onGroupOptionChange(0, value);
+	}, _topMenu->lifetime());
+
+	groupAll->checkedChanges(
+	) | rpl::on_next([=](bool value) {
+		onGroupOptionChange(1, value);
+	}, _topMenu->lifetime());
+
+	groupNone->checkedChanges(
+	) | rpl::on_next([=](bool value) {
+		onGroupOptionChange(2, value);
+	}, _topMenu->lifetime());
+
+	const auto parentTopLeft = window()->mapToGlobal(QPoint());
+	const auto buttonTopLeft = button->mapToGlobal(QPoint());
+	const auto parentRect = QRect(parentTopLeft, window()->size());
+	const auto buttonRect = QRect(buttonTopLeft, button->size());
+	_topMenu->move(
+		buttonRect.x() + buttonRect.width() - _topMenu->width() - parentRect.x(),
+		buttonRect.y() + buttonRect.height() - parentRect.y() - style::ConvertScale(18));
+	_topMenu->showAnimated(Ui::PanelAnimation::Origin::TopRight);
+}
+
+void ShareBox::updateAdditionalTitle() {
+	if (!_descriptor.forwardOptions.show) {
+		return;
+	}
+
+	auto result = QString();
+
+	const auto forwardOptions = (_forwardOptions.dropCaptions)
+		? Data::ForwardOptions::NoNamesAndCaptions
+		: _forwardOptions.dropNames
+		? Data::ForwardOptions::NoSenderNames
+		: Data::ForwardOptions::PreserveInfo;
+
+	switch (forwardOptions) {
+		case Data::ForwardOptions::NoSenderNames:
+			result = tr::ayu_ForwardSubtitle_Unquoted(tr::now);
+			break;
+
+		case Data::ForwardOptions::NoNamesAndCaptions:
+			result = tr::ayu_ForwardSubtitle_Uncaptioned(tr::now);
+			break;
+
+		default:
+			break;
+	}
+
+	if (_groupOptions != Data::GroupingOptions::GroupAsIs) {
+		if (!result.isEmpty()) {
+			result += ", ";
+		}
+		switch (_groupOptions) {
+			case Data::GroupingOptions::RegroupAll:
+				result += tr::ayu_ForwardSubtitle_GroupAllMedia(tr::now);
+				break;
+
+			case Data::GroupingOptions::Separate:
+				result += tr::ayu_ForwardSubtitle_SeparateMessages(tr::now);
+				break;
+
+			default:
+				break;
+		}
+	}
+
+	setAdditionalTitle(rpl::single(result));
+}
+
 void ShareBox::createButtons() {
 	clearButtons();
+	// AyuGram-changed: forward mode / media grouping menu button in the top
+	// right corner, like in Kotatogram.
+	if (_descriptor.forwardOptions.show) {
+		const auto moreButton = addTopButton(st::infoTopBarMenu);
+		moreButton->setClickedCallback([=] {
+			showForwardMenu(moreButton.data());
+		});
+	}
 	if (_hasSelected) {
 		const auto send = addButton(tr::lng_share_confirm(), [=] {
 			submit({});
@@ -683,15 +992,6 @@ void ShareBox::createButtons() {
 			= _descriptor.forwardOptions.sendersCount;
 		_forwardOptions.captionsCount
 			= _descriptor.forwardOptions.captionsCount;
-		// AyuGram-changed: persistent forward defaults from settings.
-		{
-			const auto &settings = AyuSettings::getInstance();
-			const auto mode = std::clamp(settings.forwardMode(), 0, 2);
-			_forwardOptions.dropNames = (mode != 0);
-			_forwardOptions.dropCaptions = (mode == 2);
-			_groupOptions = static_cast<Data::GroupingOptions>(
-				std::clamp(settings.forwardGroupingMode(), 0, 2));
-		}
 
 		send->setAcceptBoth();
 		send->clicks(

@@ -727,7 +727,7 @@ private:
 	rpl::variable<bool> _chatListCompact = false;
 	rpl::variable<int> _forwardMode = 0;
 	rpl::variable<int> _forwardGroupingMode = 0;
-	rpl::variable<bool> _forwardRememberMode = false;
+	rpl::variable<bool> _forwardRememberMode = true;
 
 	rpl::variable<bool> _useGlobalGhostMode = true;
 	std::map<uint64, std::unique_ptr<GhostModeAccountSettings>> _ghostAccounts;
