@@ -26,6 +26,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
 #include "ui/boxes/confirm_box.h"
+#include "ui/chat/forward_options_box.h"
 #include "base/random.h"
 #include "base/options.h"
 #include "base/unixtime.h"
@@ -3190,6 +3191,7 @@ base::weak_qptr<Ui::BoxContent> ShowForwardMessagesBox(
 		rpl::variable<int> starsToSend;
 		Fn<void()> refreshStarsToSend;
 		rpl::lifetime submitLifetime;
+		Data::GroupingOptions groupOptions = Data::GroupingOptions::GroupAsIs;
 	};
 
 	const auto applyFilter = [=](not_null<ListBox*> box, FilterId id) {
@@ -3279,6 +3281,10 @@ base::weak_qptr<Ui::BoxContent> ShowForwardMessagesBox(
 		});
 		show->showBox(std::move(box));
 		auto state = State{ boxRaw, controllerRaw };
+		// AyuGram-changed: the forward draft already carries the saved
+		// grouping mode, so this box starts with the same mode as the
+		// persistent defaults of the share box.
+		state.groupOptions = draft.groupOptions;
 		return boxRaw->lifetime().make_state<State>(std::move(state));
 	}();
 
@@ -3418,7 +3424,9 @@ base::weak_qptr<Ui::BoxContent> ShowForwardMessagesBox(
 			std::move(comment),
 			options,
 			forwardOptions,
-			Data::GroupingOptions::GroupAsIs);
+			// AyuGram-changed: the grouping picked in the send menu,
+			// seeded from the forward draft.
+			state->groupOptions);
 		const auto items = history->owner().idsToItems(msgIds);
 		const auto ayuForwarding = AyuForward::isAyuForwardNeeded(items)
 			|| AyuForward::isFullAyuForwardNeeded(items.front());
@@ -3455,32 +3463,47 @@ base::weak_qptr<Ui::BoxContent> ShowForwardMessagesBox(
 		}
 		state->menu.emplace(parent, st::popupMenuWithIcons);
 
+		const auto createView = [&](
+				rpl::producer<QString> &&text,
+				bool checked) {
+			auto item = base::make_unique_q<Menu::ItemWithCheck>(
+				state->menu->menu(),
+				st::popupMenuWithIcons.menu,
+				Ui::CreateChild<QAction>(state->menu->menu().get()),
+				nullptr,
+				nullptr);
+			std::move(
+				text
+			) | rpl::on_next([action = item->action()](
+					QString text) {
+				action->setText(text);
+			}, item->lifetime());
+			item->init(checked);
+			const auto view = item->checkView();
+			state->menu->addAction(std::move(item));
+			return view;
+		};
 		if (showForwardOptions) {
-			auto createView = [&](
-					rpl::producer<QString> &&text,
-					bool checked) {
-				auto item = base::make_unique_q<Menu::ItemWithCheck>(
-					state->menu->menu(),
-					st::popupMenuWithIcons.menu,
-					Ui::CreateChild<QAction>(state->menu->menu().get()),
-					nullptr,
-					nullptr);
-				std::move(
-					text
-				) | rpl::on_next([action = item->action()](
-						QString text) {
-					action->setText(text);
-				}, item->lifetime());
-				item->init(checked);
-				const auto view = item->checkView();
-				state->menu->addAction(std::move(item));
-				return view;
-			};
 			Ui::FillForwardOptions(
-				std::move(createView),
+				createView,
 				state->box->forwardOptions(),
 				[=](Ui::ForwardOptions o) {
 					state->box->setForwardOptions(o);
+				},
+				state->menu->lifetime());
+
+			// AyuGram-changed: grouping options section, the same one the
+			// share box shows.
+			Ui::FillGroupingOptions(
+				createView,
+				state->groupOptions,
+				[=](Data::GroupingOptions option) {
+					state->groupOptions = option;
+					// AyuGram-changed: remember grouping on explicit toggle.
+					if (AyuSettings::getInstance().forwardRememberMode()) {
+						AyuSettings::getInstance().setForwardGroupingMode(
+							static_cast<int>(option));
+					}
 				},
 				state->menu->lifetime());
 
