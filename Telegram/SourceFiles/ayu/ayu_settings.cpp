@@ -1081,6 +1081,12 @@ void AyuSettings::setChatListCompactTopics(bool val) {
 	save();
 }
 
+void AyuSettings::setChatListNoNestedTopics(bool val) {
+	if (_chatListNoNestedTopics.current() == val) return;
+	_chatListNoNestedTopics = val;
+	save();
+}
+
 void AyuSettings::setForwardMode(int val) {
 	if (_forwardMode.current() == val) return;
 	_forwardMode = val;
@@ -1197,6 +1203,7 @@ void to_json(nlohmann::json &j, const AyuSettings &s) {
 		{"streamerMode", s._streamerMode.current()},
 		{"chatListCompact", s._chatListCompact.current()},
 		{"chatListCompactTopics", s._chatListCompactTopics.current()},
+		{"chatListNoNestedTopics", s._chatListNoNestedTopics.current()},
 		{"forwardMode", s._forwardMode.current()},
 		{"forwardGroupingMode", s._forwardGroupingMode.current()},
 		{"forwardRememberMode", s._forwardRememberMode.current()},
@@ -1306,6 +1313,7 @@ void from_json(const nlohmann::json &j, AyuSettings &s) {
 	s._streamerMode = j.value("streamerMode", defaults._streamerMode.current());
 	s._chatListCompact = j.value("chatListCompact", defaults._chatListCompact.current());
 	s._chatListCompactTopics = j.value("chatListCompactTopics", defaults._chatListCompactTopics.current());
+	s._chatListNoNestedTopics = j.value("chatListNoNestedTopics", defaults._chatListNoNestedTopics.current());
 	s._forwardMode = j.value("forwardMode", defaults._forwardMode.current());
 	s._forwardGroupingMode = j.value("forwardGroupingMode", defaults._forwardGroupingMode.current());
 	s._forwardRememberMode = j.value("forwardRememberMode", defaults._forwardRememberMode.current());

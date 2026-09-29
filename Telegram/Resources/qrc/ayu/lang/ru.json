@@ -471,6 +471,7 @@
 	"ImportMergeSuccess_other": "Импортировано %1$d сообщений.",
 	"ChatListCompact": "Компактный список чатов",
 	"ChatListCompactTopics": "Компактный список тем во вложенных чатах",
+	"ChatListNoNestedTopics": "Без вложенного списка тем",
 	"ForwardMenu_Quoted": "Переслать с именем автора",
 	"ForwardMenu_Unquoted": "Переслать без имени автора",
 	"ForwardMenu_Uncaptioned": "Переслать без автора и подписей",

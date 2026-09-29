@@ -355,6 +355,7 @@ public:
 	[[nodiscard]] bool streamerMode() const { return _streamerMode.current(); }
 	[[nodiscard]] bool chatListCompact() const { return _chatListCompact.current(); }
 	[[nodiscard]] bool chatListCompactTopics() const { return _chatListCompactTopics.current(); }
+	[[nodiscard]] bool chatListNoNestedTopics() const { return _chatListNoNestedTopics.current(); }
 	[[nodiscard]] int forwardMode() const { return _forwardMode.current(); }
 	[[nodiscard]] int forwardGroupingMode() const { return _forwardGroupingMode.current(); }
 	[[nodiscard]] bool forwardRememberMode() const { return _forwardRememberMode.current(); }
@@ -447,6 +448,7 @@ public:
 	void setStreamerMode(bool val);
 	void setChatListCompact(bool val);
 	void setChatListCompactTopics(bool val);
+	void setChatListNoNestedTopics(bool val);
 	void setForwardMode(int val);
 	void setForwardGroupingMode(int val);
 	void setForwardRememberMode(bool val);
@@ -629,6 +631,8 @@ public:
 	[[nodiscard]] rpl::producer<bool> chatListCompactChanges() const { return _chatListCompact.changes(); }
 	[[nodiscard]] rpl::producer<bool> chatListCompactTopicsValue() const { return _chatListCompactTopics.value(); }
 	[[nodiscard]] rpl::producer<bool> chatListCompactTopicsChanges() const { return _chatListCompactTopics.changes(); }
+	[[nodiscard]] rpl::producer<bool> chatListNoNestedTopicsValue() const { return _chatListNoNestedTopics.value(); }
+	[[nodiscard]] rpl::producer<bool> chatListNoNestedTopicsChanges() const { return _chatListNoNestedTopics.changes(); }
 	[[nodiscard]] rpl::producer<int> forwardModeValue() const { return _forwardMode.value(); }
 	[[nodiscard]] rpl::producer<int> forwardGroupingModeValue() const { return _forwardGroupingMode.value(); }
 	[[nodiscard]] rpl::producer<bool> forwardRememberModeValue() const { return _forwardRememberMode.value(); }
@@ -730,6 +734,7 @@ private:
 	rpl::variable<bool> _streamerMode = false;
 	rpl::variable<bool> _chatListCompact = false;
 	rpl::variable<bool> _chatListCompactTopics = false;
+	rpl::variable<bool> _chatListNoNestedTopics = false;
 	rpl::variable<int> _forwardMode = 0;
 	rpl::variable<int> _forwardGroupingMode = 0;
 	rpl::variable<bool> _forwardRememberMode = true;

@@ -52,6 +52,13 @@ void BuildChatsList(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 		.setter = &AyuSettings::setChatListCompactTopics,
 	});
 
+	ayu.addSettingToggle({
+		.id = u"ayu/chatListNoNestedTopics"_q,
+		.title = tr::ayu_ChatListNoNestedTopics(),
+		.getter = &AyuSettings::chatListNoNestedTopics,
+		.setter = &AyuSettings::setChatListNoNestedTopics,
+	});
+
 	ayu.addSectionDivider();
 }
 
