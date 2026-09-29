@@ -360,8 +360,9 @@ const style::DialogRow &Row::ComputeSt(
 		FilterId filterId) {
 	const auto &settings = AyuSettings::getInstance();
 	if (entry->asTopic()) {
-		// AyuGram-changed: compact topic list in nested chats.
-		return settings.chatListCompactTopics()
+		// AyuGram-changed: the compact chat list covers the nested topic list
+		// as well, the separate option enables it on its own.
+		return (settings.chatListCompact() || settings.chatListCompactTopics())
 			? st::compactForumTopicRow
 			: st::forumTopicRow;
 	}

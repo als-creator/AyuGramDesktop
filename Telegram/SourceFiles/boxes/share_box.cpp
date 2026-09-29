@@ -63,6 +63,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/core_settings.h"
 #include "styles/style_calls.h"
 #include "styles/style_chat_helpers.h"
+#include "styles/style_info.h" // infoTopBarMenu
 #include "styles/style_layers.h"
 #include "styles/style_media_player.h" // mediaPlayerMenuCheck
 #include "styles/style_share_box.h"
@@ -78,7 +79,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace {
 
 // AyuGram-changed: ported from Kotatogram. A menu action with a check that
-// behaves like a radio button: the chosen option can not be unchecked back.
+// behaves like a radio button: the chosen option can not be unchecked back,
+// ShareBox::showForwardMenu() re-checks it when an uncheck is attempted.
 class ForwardOptionItem final : public Ui::Menu::Action {
 public:
 	using Ui::Menu::Action::Action;
@@ -96,15 +98,12 @@ public:
 			setIcon(checked ? &st::mediaPlayerMenuCheck : nullptr);
 		}, lifetime());
 
-		_checkView->setLocked(checked);
 		_checkView->setChecked(checked, anim::type::normal);
 		AbstractButton::clicks(
 		) | rpl::on_next([=] {
-			if (!_checkView->isLocked()) {
-				_checkView->setChecked(
-					!_checkView->checked(),
-					anim::type::normal);
-			}
+			_checkView->setChecked(
+				!_checkView->checked(),
+				anim::type::normal);
 		}, lifetime());
 	}
 
@@ -812,9 +811,6 @@ void ShareBox::showForwardMenu(not_null<Ui::IconButton*> button) {
 
 	const auto applyForward = [=](int mode) {
 		*updating = true;
-		quoted->setLocked(mode == 0);
-		noNames->setLocked(mode == 1);
-		noCaptions->setLocked(mode == 2);
 		quoted->setChecked(mode == 0, anim::type::normal);
 		noNames->setChecked(mode == 1, anim::type::normal);
 		noCaptions->setChecked(mode == 2, anim::type::normal);
@@ -870,9 +866,6 @@ void ShareBox::showForwardMenu(not_null<Ui::IconButton*> button) {
 
 	const auto applyGrouping = [=](int mode) {
 		*updating = true;
-		groupAsIs->setLocked(mode == 0);
-		groupAll->setLocked(mode == 1);
-		groupNone->setLocked(mode == 2);
 		groupAsIs->setChecked(mode == 0, anim::type::normal);
 		groupAll->setChecked(mode == 1, anim::type::normal);
 		groupNone->setChecked(mode == 2, anim::type::normal);
