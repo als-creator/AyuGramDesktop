@@ -1716,10 +1716,7 @@ void Filler::addViewAsMessages() {
 		return false;
 	};
 	const auto open = [=] {
-		if (const auto forum = peer->forum()) {
-			peer->owner().saveViewAsMessages(forum, true);
-		}
-		controller->showPeerHistory(peer->id);
+		controller->showForumAsMessages(peer);
 	};
 	auto to_instant = rpl::map_to(anim::type::instant);
 	auto make = [=](not_null<Ui::PopupMenu*> popupMenu) {
