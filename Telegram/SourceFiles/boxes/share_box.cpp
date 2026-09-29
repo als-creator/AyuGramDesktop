@@ -78,9 +78,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace {
 
-// AyuGram-changed: ported from Kotatogram. A menu action with a check that
-// behaves like a radio button: the chosen option can not be unchecked back,
-// ShareBox::showForwardMenu() re-checks it when an uncheck is attempted.
+// AyuGram-changed: a menu action with a check that behaves like a radio
+// button, the chosen option can not be unchecked back.
 class ForwardOptionItem final : public Ui::Menu::Action {
 public:
 	using Ui::Menu::Action::Action;
@@ -712,7 +711,7 @@ void ShareBox::showMenu(not_null<Ui::RpWidget*> parent) {
 
 void ShareBox::showForwardMenu(not_null<Ui::IconButton*> button) {
 	// AyuGram-changed: forward mode / media grouping menu in the top right
-	// corner of the forward box, like in Kotatogram.
+	// corner of the forward box.
 	if (_topMenu) {
 		_topMenu->hideAnimated(Ui::InnerDropdown::HideOption::IgnoreShow);
 		return;
@@ -943,7 +942,7 @@ void ShareBox::updateAdditionalTitle() {
 void ShareBox::createButtons() {
 	clearButtons();
 	// AyuGram-changed: forward mode / media grouping menu button in the top
-	// right corner, like in Kotatogram.
+	// right corner.
 	if (_descriptor.forwardOptions.show) {
 		const auto moreButton = addTopButton(st::infoTopBarMenu);
 		moreButton->setClickedCallback([=] {
