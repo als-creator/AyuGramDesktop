@@ -57,6 +57,8 @@ struct ScrollToRequest;
 template <typename Widget>
 class SlideWrap;
 class PopupMenu;
+class DropdownMenu;
+class IconButton;
 } // namespace Ui
 
 class ShareBox;
@@ -163,6 +165,8 @@ private:
 	void selectedChanged();
 	void computeStarsCount();
 	void createButtons();
+	void showForwardMenu(not_null<Ui::IconButton*> button);
+	void updateAdditionalTitle();
 	int getTopScrollSkip() const;
 	int getBottomScrollSkip() const;
 	int contentHeight() const;
@@ -186,6 +190,7 @@ private:
 	object_ptr<Ui::RpWidget> _bottomWidget;
 
 	base::unique_qptr<Ui::PopupMenu> _menu;
+	base::unique_qptr<Ui::DropdownMenu> _topMenu;
 	Ui::ForwardOptions _forwardOptions;
 	Data::GroupingOptions _groupOptions = Data::GroupingOptions::GroupAsIs;
 

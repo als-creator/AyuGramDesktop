@@ -9047,4 +9047,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "ayu_ForwardMode_NoNamesAndCaptions" = "Without names and captions";
 "ayu_ForwardGroupingMode" = "Forward media grouping";
 "ayu_ForwardRememberMode" = "Remember chosen forward options";
+"ayu_ForwardSubtitle_Unquoted" = "without sender names";
+"ayu_ForwardSubtitle_Uncaptioned" = "without names and captions";
+"ayu_ForwardSubtitle_GroupAllMedia" = "regrouping media";
+"ayu_ForwardSubtitle_SeparateMessages" = "separating media";
 "ayu_CategoryForward" = "Forwarding";
