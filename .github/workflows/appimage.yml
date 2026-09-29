@@ -219,13 +219,13 @@ jobs:
           NOTES="Dev AppImage of [als-creator/AyuGramDesktop]($SRC) branch \`dev\`, commit \`$GITHUB_SHA\`, actual version \`v${VER}\`, in-app build number \`${{ github.run_number }}\`.
 
           ### Compact chat list
-          Port from Kotatogram: single-line 37px rows, archive collapsed, no corner badges. Toggle: **Settings - Chats - Compact chat list**.
+          Single-line 37px rows, archive collapsed, no corner badges. Toggle: **Settings - Chats - Compact chat list**.
 
-          ### Compact topic list in nested chats
-          The same compact rows for the topic list inside an opened forum. Toggle: **Settings - Chats - Compact topic list in nested chats**.
+          ### Compact nested chats
+          The same compact rows for the topic list inside an opened forum. Toggle: **Settings - Chats - Compact nested chats**.
 
-          ### No nested topic list
-          Open forums like any other chat, so the chats list stays a single continuous feed. Toggle: **Settings - Chats - No nested topic list**.
+          ### Unified chat
+          Open a forum as a single chat feed from the chats list, the same mode as **Unified chat** in the chat menu, applied to every forum. Toggle: **Settings - Chats - Unified chat**.
 
           ### Forward modes menu
           A menu button in the top right corner of the forward box: forward with sender names / without sender name / without names and captions, and the media grouping below. The choice is remembered and stays until it is changed back, and the active mode is shown in the box subtitle.

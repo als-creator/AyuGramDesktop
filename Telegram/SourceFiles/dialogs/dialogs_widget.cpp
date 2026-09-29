@@ -1086,8 +1086,9 @@ void Widget::chosenRow(const ChosenRow &row) {
 		} else if (row.newWindow) {
 			controller()->showInNewWindow(Window::SeparateId(topicJump));
 		} else {
-			// AyuGram-changed: "no nested topic list" opens the topic itself
-			// instead of popping the topic list over the chats list.
+			// AyuGram-changed: the "unified chat" option opens the topic
+			// itself instead of popping the topic list over the chats
+			// list.
 			if (!AyuSettings::getInstance().chatListNoNestedTopics()
 				&& !controller()->adaptive().isOneColumn()
 				&& !topicJump->peer()->useSubsectionTabs()) {
@@ -1155,9 +1156,22 @@ void Widget::chosenRow(const ChosenRow &row) {
 	} else if (history
 		&& history->isForum()
 		&& !row.message.fullId
-		// AyuGram-changed: "no nested topic list" opens the forum as a plain
-		// chat, so the chats list stays a single continuous feed.
-		&& !AyuSettings::getInstance().chatListNoNestedTopics()
+		&& AyuSettings::getInstance().chatListNoNestedTopics()) {
+		// AyuGram-changed: the "unified chat" option uses the same switch
+		// as the "View as Messages" item of the chat menu, so the server
+		// side state and the unread counters stay the same as when the
+		// mode is picked there.
+		if (row.newWindow) {
+			controller()->showInNewWindow(Window::SeparateId(
+				Window::SeparateType::Chat,
+				history));
+		} else {
+			controller()->showForumAsMessages(history->peer());
+		}
+		return;
+	} else if (history
+		&& history->isForum()
+		&& !row.message.fullId
 		&& (!controller()->adaptive().isOneColumn()
 			|| !history->peer->viewForumAsMessages()
 			|| history->peer->useSubsectionTabs())) {
