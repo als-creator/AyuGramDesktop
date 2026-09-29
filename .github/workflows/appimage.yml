@@ -224,6 +224,9 @@ jobs:
           ### Compact topic list in nested chats
           The same compact rows for the topic list inside an opened forum. Toggle: **Settings - Chats - Compact topic list in nested chats**.
 
+          ### No nested topic list
+          Open forums like any other chat, so the chats list stays a single continuous feed. Toggle: **Settings - Chats - No nested topic list**.
+
           ### Forward modes menu
           A menu button in the top right corner of the forward box: forward with sender names / without sender name / without names and captions, and the media grouping below. The choice is remembered and stays until it is changed back, and the active mode is shown in the box subtitle.
 
