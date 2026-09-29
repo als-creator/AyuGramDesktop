@@ -72,7 +72,9 @@ void FillGroupingOptions(
 		rpl::lifetime &lifetime) {
 	Expects(optionsChanged != nullptr);
 
-	const auto addOption = [=](
+	// AyuGram-changed: captured by reference, rpl::lifetime is move-only
+	// and this lambda only runs while the caller's lifetime is alive.
+	const auto addOption = [&](
 			Data::GroupingOptions option,
 			rpl::producer<QString> &&text) {
 		const auto view = createView(std::move(text), options == option);
