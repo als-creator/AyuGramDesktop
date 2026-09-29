@@ -41,6 +41,20 @@ int Launcher::exec() {
 	return Core::Launcher::exec();
 }
 
+namespace {
+
+// AyuGram-changed: cExeDir() + cExeName() is derived from /proc/self/exe,
+// which inside an AppImage is the binary within the mounted squashfs. That
+// mount is unmounted as soon as this process exits, so relaunching that
+// path starts a process whose own executable and libraries are already gone.
+// The AppImage runtime exports the .AppImage file itself in $APPIMAGE.
+QString RelaunchTarget() {
+	const auto appImage = qEnvironmentVariable("APPIMAGE");
+	return appImage.isEmpty() ? (cExeDir() + cExeName()) : appImage;
+}
+
+} // namespace
+
 bool Launcher::launchUpdater(UpdaterLaunch action) {
 	if (cExeName().isEmpty()) {
 		return false;
@@ -61,14 +75,17 @@ bool Launcher::launchUpdater(UpdaterLaunch action) {
 		argumentsList.push_back((cExeDir() + cExeName()).toStdString());
 	} else if (justRelaunch) {
 		// What we are launching.
-		const auto launching = (cExeDir() + cExeName());
+		const auto launching = RelaunchTarget();
 		argumentsList.push_back(launching.toStdString());
 		// argv[0] that is passed to what we are launching.
 		// It should be added explicitly in case of FILE_AND_ARGV_ZERO_.
-		const auto argv0 = !arguments().isEmpty()
-			? arguments().first()
-			: launching;
-		argumentsList.push_back(argv0.toStdString());
+		// AyuGram-changed: $ARGV0 holds the path the user actually invoked,
+		// while arguments().first() is the path inside the AppImage mount.
+		const auto argv0 = qEnvironmentVariable("ARGV0");
+		argumentsList.push_back(
+			((argv0.isEmpty() && !arguments().isEmpty())
+				? arguments().first()
+				: launching).toStdString());
 	} else if (cWriteProtected()) {
 		argumentsList.push_back(GLib::find_program_in_path("run0")
 			? "run0"
