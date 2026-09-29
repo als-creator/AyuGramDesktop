@@ -624,7 +624,7 @@ void ShareBox::showMenu(not_null<Ui::RpWidget*> parent) {
 	_menu.emplace(parent, st::popupMenuWithIcons);
 
 	if (_descriptor.forwardOptions.show) {
-		auto createView = [&](rpl::producer<QString> &&text, bool checked) {
+		const auto createView = [&](rpl::producer<QString> &&text, bool checked) {
 			auto item = base::make_unique_q<Menu::ItemWithCheck>(
 				_menu->menu(),
 				st::popupMenuWithIcons.menu,
@@ -642,7 +642,7 @@ void ShareBox::showMenu(not_null<Ui::RpWidget*> parent) {
 			return view;
 		};
 		Ui::FillForwardOptions(
-			std::move(createView),
+			createView,
 			_forwardOptions,
 			[=](Ui::ForwardOptions value) {
 				_forwardOptions = value;
@@ -660,28 +660,10 @@ void ShareBox::showMenu(not_null<Ui::RpWidget*> parent) {
 		_menu->addSeparator();
 
 		// AyuGram-changed: grouping options section.
-		using GOptions = Data::GroupingOptions;
-		const auto addGroupingOption = [&](
-				Data::GroupingOptions option,
-				rpl::producer<QString> &&text) {
-			auto item = base::make_unique_q<Menu::ItemWithCheck>(
-				_menu->menu(),
-				st::popupMenuWithIcons.menu,
-				Ui::CreateChild<QAction>(_menu->menu().get()),
-				nullptr,
-				nullptr);
-			std::move(
-				text
-			) | rpl::on_next([action = item->action()](QString text) {
-				action->setText(text);
-			}, item->lifetime());
-			item->init(_groupOptions == option);
-			const auto view = item->checkView();
-			_menu->addAction(std::move(item));
-			view->checkedChanges(
-			) | rpl::filter([](bool checked) {
-				return checked;
-			}) | rpl::on_next([=] {
+		Ui::FillGroupingOptions(
+			createView,
+			_groupOptions,
+			[=](Data::GroupingOptions option) {
 				_groupOptions = option;
 				// AyuGram-changed: remember grouping on explicit toggle.
 				if (AyuSettings::getInstance().forwardRememberMode()) {
@@ -689,17 +671,8 @@ void ShareBox::showMenu(not_null<Ui::RpWidget*> parent) {
 						static_cast<int>(option));
 				}
 				updateAdditionalTitle();
-			}, _menu->lifetime());
-		};
-		addGroupingOption(
-			GOptions::GroupAsIs,
-			tr::ayu_ForwardGroupingMode_PreserveAlbums());
-		addGroupingOption(
-			GOptions::RegroupAll,
-			tr::ayu_ForwardGroupingMode_Regroup());
-		addGroupingOption(
-			GOptions::Separate,
-			tr::ayu_ForwardGroupingMode_Separate());
+			},
+			_menu->lifetime());
 
 		_menu->addSeparator();
 	}

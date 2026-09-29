@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "data/data_types.h"
 #include "ui/layers/generic_box.h"
 
 namespace Ui {
@@ -26,6 +27,14 @@ void FillForwardOptions(
 		bool)> createView,
 	ForwardOptions options,
 	Fn<void(ForwardOptions)> optionsChanged,
+	rpl::lifetime &lifetime);
+
+void FillGroupingOptions(
+	Fn<not_null<AbstractCheckView*>(
+		rpl::producer<QString> &&,
+		bool)> createView,
+	Data::GroupingOptions options,
+	Fn<void(Data::GroupingOptions)> optionsChanged,
 	rpl::lifetime &lifetime);
 
 } // namespace Ui
