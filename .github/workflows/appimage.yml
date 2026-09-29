@@ -1,4 +1,4 @@
-name: AyuGram AppImage (dev, compact chats).
+name: AyuGram AppImage (dev).
 
 on:
   push:
@@ -62,6 +62,17 @@ jobs:
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
         with:
           tool-cache: true
+
+      - name: Stamp the build number into the app version.
+        run: |
+          set -e
+          FILE=Telegram/SourceFiles/core/version.h
+          RUN="${{ github.run_number }}"
+          BASE=$(sed -n 's/^constexpr auto AppVersionStr = "\(.*\)";$/\1/p' "$FILE")
+          test -n "$BASE"
+          sed -i "s|^constexpr auto AppVersionStr = \".*\";|constexpr auto AppVersionStr = \"$BASE.$RUN\";|" "$FILE"
+          echo "App version $BASE -> $BASE.$RUN"
+          grep -n 'AppVersionStr ' "$FILE"
 
       - name: Set up Docker Buildx.
         uses: docker/setup-buildx-action@v4
@@ -144,8 +155,8 @@ jobs:
           printf '%s\n' \
             '[Desktop Entry]' \
             'Type=Application' \
-            'Name=AyuGram (dev, compact chats)' \
-            'Comment=Rolling AyuGram dev build with compact chat list ported from Kotatogram' \
+            'Name=AyuGram (dev)' \
+            'Comment=Rolling AyuGram dev build with the Kotatogram features ported' \
             'Exec=AyuGram' \
             'Icon=com.ayugram.desktop' \
             'Terminal=false' \
@@ -205,13 +216,16 @@ jobs:
           SRC="https://github.com/$REPO"
           VER=$(grep '^AppVersionStr ' Telegram/build/version | awk '{print $2}')
           TAG="v${VER}-build-${{ github.run_number }}"
-          NOTES="Dev AppImage of [als-creator/AyuGramDesktop]($SRC) branch \`dev\`, commit \`$GITHUB_SHA\`, actual version \`v${VER}\`.
+          NOTES="Dev AppImage of [als-creator/AyuGramDesktop]($SRC) branch \`dev\`, commit \`$GITHUB_SHA\`, actual version \`v${VER}\`, in-app build number \`${{ github.run_number }}\`.
 
           ### Compact chat list
-          Port from Kotatogram (single-line 37px rows, archive collapsed, no corner badges). Toggle: **Settings - Chats - Compact chat list**.
+          Port from Kotatogram: single-line 37px rows, archive collapsed, no corner badges. Toggle: **Settings - Chats - Compact chat list**.
 
-          ### Forward without author
-          Already built into AyuGram: right-click the forwarding panel (or, in the forward box, right-click the send button - untick **Show sender name(s)**).
+          ### Compact topic list in nested chats
+          The same compact rows for the topic list inside an opened forum. Toggle: **Settings - Chats - Compact topic list in nested chats**.
+
+          ### Forward modes menu
+          A menu button in the top right corner of the forward box: forward with sender names / without sender name / without names and captions, and the media grouping below. The choice is remembered and stays until it is changed back, and the active mode is shown in the box subtitle.
 
           ### Russian translations
           Full bundled Russian language pack: all settings and experimental functions are translated.
@@ -220,5 +234,5 @@ jobs:
           gh release create "$TAG" \
             appimage/AyuGram-x86_64.AppImage \
             --repo "$REPO" \
-            --title "AyuGram v${VER} (dev, compact chats) - build ${{ github.run_number }}" \
+            --title "AyuGram v${VER} (dev) - build ${{ github.run_number }}" \
             --notes "$NOTES"
