@@ -3456,6 +3456,18 @@ void ChatWidget::listMarkReadTill(not_null<HistoryItem*> item) {
 		_replies->readTill(item);
 	} else if (_sublist) {
 		_sublist->readTill(item);
+	} else if (_history
+		&& _history->isForum()
+		&& AyuSettings::getInstance().chatListNoNestedTopics()) {
+		// AyuGram-changed: in the unified view of a forum a message is
+		// read together with its topic, so the topic read position, the
+		// unread counter of the chat and the topic list all follow what
+		// has been scrolled into the viewport.
+		if (const auto topic = item->topic()) {
+			if (const auto replies = topic->replies()) {
+				replies->readTill(item);
+			}
+		}
 	}
 }
 

@@ -4574,11 +4574,18 @@ void HistoryWidget::unreadCountUpdated() {
 			}
 		});
 	} else {
-		const auto hideCounter = _history->isForum()
+		// AyuGram-changed: with the unified chat option a forum is opened
+		// as a plain chat, so the button shows the total unread count of
+		// all its topics instead of nothing. History::forumChanged
+		// forwards every topic unread change as UnreadView, so the value
+		// follows the reading position without a separate subscription.
+		const auto unifiedForum = _history->isForum()
+			&& AyuSettings::getInstance().chatListNoNestedTopics();
+		const auto hideCounter = (_history->isForum() && !unifiedForum)
 			|| !_history->trackUnreadMessages();
 		_cornerButtons.updateJumpDownVisibility(hideCounter
 			? 0
-			: _history->amMonoforumAdmin()
+			: (unifiedForum || _history->amMonoforumAdmin())
 			? _history->chatListUnreadState().messages
 			: _history->chatListBadgesState().unreadCounter);
 	}
