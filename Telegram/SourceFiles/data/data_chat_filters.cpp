@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "api/api_text_entities.h"
 #include "core/application.h"
+#include "core/core_settings.h"
 #include "history/history.h"
 #include "data/data_peer.h"
 #include "data/data_user.h"
@@ -51,7 +52,7 @@ ChatFilter MakeNewsFeedFilter(not_null<Session*> owner) {
 	return ChatFilter(
 		kNewsFeedFilterId,
 		ChatFilterTitle{
-			.text = TextWithEntities{ tr::ayu_NewsFeedTab() },
+			.text = TextWithEntities{ tr::ayu_NewsFeedTab(tr::now) },
 			.isStatic = true,
 		},
 		QString::fromUtf8("\xF0\x9F\x93\xA2"), // 📢

@@ -91,7 +91,7 @@ void ShowMenu(
 
 	if (id == kNewsFeedFilterId) {
 		addAction(
-			tr::ayu_NewsFeedEdit(),
+			tr::ayu_NewsFeedEdit(tr::now),
 			[=] { EditNewsFeedFilter(controller); },
 			&st::menuIconEdit);
 
@@ -104,7 +104,7 @@ void ShowMenu(
 			session->data().chatsFilters().setNewsFeedEnabled(false);
 		};
 		addAction({
-			.text = tr::ayu_NewsFeedHide(),
+			.text = tr::ayu_NewsFeedHide(tr::now),
 			.handler = std::move(hideTab),
 			.icon = &st::menuIconDeleteAttention,
 			.isAttention = true,
@@ -300,8 +300,8 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 			}
 			button->setIconColorOverride(color);
 			button->setToolTip(enabled
-				? tr::ayu_NewsFeedHide()
-				: tr::ayu_NewsFeedToggle());
+				? tr::ayu_NewsFeedHide(tr::now)
+				: tr::ayu_NewsFeedToggle(tr::now));
 		};
 		session->data().chatsFilters().changed(
 		) | rpl::on_next(updateButton, wrap->lifetime());

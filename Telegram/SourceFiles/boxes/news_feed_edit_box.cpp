@@ -26,13 +26,18 @@ public:
 		not_null<Main::Session*> session,
 		base::flat_set<PeerId> excluded)
 	: ChatsListBoxController(session)
+	, _session(session)
 	, _excluded(std::move(excluded)) {
+	}
+
+	[[nodiscard]] Main::Session &session() const override {
+		return *_session;
 	}
 
 	void prepareViewHook() override {
 		delegate()->peerListSetTitle(
-			rpl::single(tr::ayu_NewsFeedEditTitle()));
-		setDescriptionText(tr::ayu_NewsFeedEditAbout());
+			rpl::single(tr::ayu_NewsFeedEditTitle(tr::now)));
+		setDescriptionText(tr::ayu_NewsFeedEditAbout(tr::now));
 	}
 
 	std::unique_ptr<Row> createRow(not_null<History*> history) override {
@@ -63,6 +68,7 @@ public:
 	}
 
 private:
+	const not_null<Main::Session*> _session;
 	base::flat_set<PeerId> _excluded;
 
 };
@@ -87,7 +93,9 @@ void EditNewsFeedFilter(not_null<Window::SessionController*> controller) {
 		session,
 		std::move(excluded));
 	const auto raw = chatController.get();
-	const auto box = Box<PeerListBox>(
+	// Not const: show() takes object_ptr<Ui::BoxContent>, and the
+	// conversion from object_ptr<PeerListBox> only binds an rvalue.
+	auto box = Box<PeerListBox>(
 		std::move(chatController),
 		[=](not_null<PeerListBox*> inner) {
 			inner->addButton(tr::lng_settings_save(), [=] {
