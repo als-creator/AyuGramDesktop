@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/application.h"
 #include "core/core_settings.h"
 #include "history/history.h"
+#include "lang/lang_keys.h"
 #include "data/data_peer.h"
 #include "data/data_user.h"
 #include "data/data_chat.h"

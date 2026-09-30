@@ -16,6 +16,7 @@
 #include "core/application.h"
 #include "core/core_settings.h"
 #include "data/data_chat_filters.h"
+#include "data/data_session.h"
 #include "main/main_session.h"
 #include "settings/settings_builder.h"
 #include "settings/settings_common.h"
