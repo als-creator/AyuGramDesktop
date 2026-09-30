@@ -3456,8 +3456,7 @@ void ChatWidget::listMarkReadTill(not_null<HistoryItem*> item) {
 		_replies->readTill(item);
 	} else if (_sublist) {
 		_sublist->readTill(item);
-	} else if (_history
-		&& _history->isForum()
+	} else if (_history->isForum()
 		&& AyuSettings::getInstance().chatListNoNestedTopics()) {
 		// AyuGram-changed: in the unified view of a forum a message is
 		// read together with its topic, so the topic read position, the
