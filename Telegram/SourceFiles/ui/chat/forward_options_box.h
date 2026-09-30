@@ -7,7 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "data/data_types.h"
+#include "data/data_forward_options.h"
 #include "ui/layers/generic_box.h"
 
 namespace Ui {

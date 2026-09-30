@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/text.h" // Ui::kQFixedMax.
 #include "data/data_peer_id.h"
 #include "data/data_msg_id.h"
+#include "data/data_forward_options.h"
 #include "base/qt/qt_compare.h"
 
 struct AudioAlbumThumbLocation;
@@ -387,18 +388,6 @@ inline constexpr bool is_flag_type(MediaWebPageFlag) { return true; }
 using MediaWebPageFlags = base::flags<MediaWebPageFlag>;
 
 namespace Data {
-
-enum class ForwardOptions {
-	PreserveInfo,
-	NoSenderNames,
-	NoNamesAndCaptions,
-};
-
-enum class GroupingOptions {
-	GroupAsIs,
-	RegroupAll,
-	Separate,
-};
 
 enum class ViewRemovalReason : uchar {
 	Removed,
