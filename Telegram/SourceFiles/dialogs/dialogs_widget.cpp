@@ -1166,7 +1166,7 @@ void Widget::chosenRow(const ChosenRow &row) {
 				Window::SeparateType::Chat,
 				history));
 		} else {
-			controller()->showForumAsMessages(history->peer());
+			controller()->showForumAsMessages(history->peer);
 		}
 		return;
 	} else if (history
