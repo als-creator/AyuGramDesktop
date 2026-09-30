@@ -14,6 +14,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/themes/window_themes_embedded.h"
 #include "ui/chat/attach/attach_send_files_way.h"
 #include "base/flags.h"
+// data_peer_id.h needs MTPlong, so include its provider first.
+#include "mtproto/core_types.h"
+#include "data/data_peer_id.h"
 #include "emoji.h"
 
 enum class RectPart;
@@ -1015,6 +1018,21 @@ public:
 	-> rpl::producer<Ui::ChatsFiltersTabsMode>;
 	void setChatFiltersTabsMode(Ui::ChatsFiltersTabsMode value);
 
+	// AyuGram: the built-in "News feed" tab of the chats list.
+	[[nodiscard]] bool chatListNewsFeed() const {
+		return _chatListNewsFeed.current();
+	}
+	[[nodiscard]] rpl::producer<bool> chatListNewsFeedChanges() const {
+		return _chatListNewsFeed.changes();
+	}
+	void setChatListNewsFeed(bool value);
+
+	// AyuGram: exclusions of the built-in "News feed" tab are stored
+	// per account, because peer ids are only meaningful within one account.
+	[[nodiscard]] std::vector<PeerId> newsFeedExcluded(
+		uint64 accountId) const;
+	void setNewsFeedExcluded(uint64 accountId, std::vector<PeerId> value);
+
 	[[nodiscard]] Media::VideoQuality videoQuality() const;
 	void setVideoQuality(Media::VideoQuality quality);
 
@@ -1212,6 +1230,8 @@ private:
 	rpl::variable<bool> _chatFiltersHorizontal = false;
 	rpl::variable<Ui::ChatsFiltersTabsMode> _chatFiltersTabsMode
 		= Ui::ChatsFiltersTabsMode::Default;
+	rpl::variable<bool> _chatListNewsFeed = true;
+	base::flat_map<uint64, std::vector<PeerId>> _newsFeedExcluded;
 	base::flat_map<QByteArray, QByteArray> _prefs;
 
 	bool _tabbedReplacedWithInfo = false; // per-window

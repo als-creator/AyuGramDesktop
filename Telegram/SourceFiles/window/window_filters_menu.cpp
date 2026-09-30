@@ -363,15 +363,21 @@ void FiltersMenu::refresh() {
 	_reorder->cancel();
 
 	_reorder->clearPinnedIntervals();
+	// AyuGram: the built-in news feed tab takes no folder slot, so all
+	// index-based limits below are shifted by it and it is never locked.
+	const auto newsOffset = filters->newsFeedOffset();
 	const auto maxLimit = (reorderAll ? 1 : 0)
 		+ Data::PremiumLimits(&_session->session()).dialogFiltersCurrent();
-	const auto premiumFrom = (reorderAll ? 0 : 1) + maxLimit;
+	const auto premiumFrom = (reorderAll ? 0 : 1) + maxLimit + newsOffset;
 	if (!reorderAll && !settings.hideAllChatsFolder()) {
 		_reorder->addPinnedInterval(0, 1);
 	}
+	if (newsOffset) {
+		_reorder->addPinnedInterval(1, 1);
+	}
 	_reorder->addPinnedInterval(
 		premiumFrom,
-		std::max(1, int(filters->list().size()) - maxLimit));
+		std::max(1, int(filters->list().size()) - maxLimit - newsOffset));
 
 	// Remember which folder holds keyboard focus so the roving Tab-stop can be
 	// re-established on its replacement after the rebuild: the new buttons are
@@ -388,7 +394,8 @@ void FiltersMenu::refresh() {
 	auto now = base::flat_map<int, base::unique_qptr<Ui::SideBarButton>>();
 	const auto &currentFilter = _session->activeChatsFilterCurrent();
 	for (const auto &filter : filters->list()) {
-		const auto nextIsLocked = (now.size() >= premiumFrom);
+		const auto nextIsLocked = (filter.id() != kNewsFeedFilterId)
+			&& (now.size() >= premiumFrom);
 		if (nextIsLocked && (currentFilter == filter.id())) {
 			_session->setActiveChatsFilter(FilterId(0));
 		}
@@ -577,7 +584,8 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 	// inserting the widget - insertion shows the child immediately, so
 	// configuring the role up front avoids a transient or separately-announced
 	// role change.
-	const auto listItem = (id >= 0);
+	// AyuGram: the built-in news feed tab is a real, selectable tab too.
+	const auto listItem = (id >= 0) || (id == kNewsFeedFilterId);
 	const auto mode = tabsMode();
 	auto prepared = object_ptr<Ui::SideBarButton>(
 		container,
@@ -604,7 +612,9 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 		? icon
 		: Ui::FilterIcon::All);
 	raw->setIconOverride(icons.normal, icons.active);
-	if (id >= 0) {
+	// AyuGram: the built-in news feed tab shows the same unread badge
+	// as in the tabs strip, so that both counters stay in sync.
+	if (id >= 0 || id == kNewsFeedFilterId) {
 		if (locked) {
 			// Surface a locked folder's premium-gated status and what pressing
 			// it does, which the visual lock glyph alone can't convey to a
@@ -706,10 +716,10 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 				FiltersLimitBox,
 				&_session->session(),
 				std::nullopt));
-		} else if (id >= 0) {
-			_session->setActiveChatsFilter(id);
-		} else {
+		} else if (id == -1) {
 			openFiltersSettings();
+		} else {
+			_session->setActiveChatsFilter(id);
 		}
 	});
 	if (id >= 0) {

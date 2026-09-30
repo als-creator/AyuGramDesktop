@@ -83,6 +83,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
 #include "ui/unread_badge.h"
 #include "boxes/filters/edit_filter_box.h"
+#include "boxes/news_feed_edit_box.h"
 #include "boxes/peers/edit_forum_topic_box.h"
 #include "boxes/peer_list_box.h"
 #include "api/api_chat_filters.h"
@@ -4945,6 +4946,9 @@ bool InnerWidget::needCollapsedRowsRefresh() const {
 void InnerWidget::editOpenedFilter() {
 	if (_filterId > 0) {
 		EditExistingFilter(_controller, _filterId);
+	} else if (_filterId == kNewsFeedFilterId) {
+		// AyuGram: the built-in news feed tab is edited by its own box.
+		EditNewsFeedFilter(_controller);
 	}
 }
 
@@ -5058,7 +5062,7 @@ void InnerWidget::refreshEmpty() {
 			: EmptyState::None)
 		: (!_filterId && data->contactsLoaded().current())
 		? EmptyState::NoContacts
-		: (_filterId > 0) && data->chatsList()->loaded()
+		: (_filterId) && data->chatsList()->loaded()
 		? EmptyState::EmptyFolder
 		: EmptyState::Loading;
 	if (state == EmptyState::None) {

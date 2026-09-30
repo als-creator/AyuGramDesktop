@@ -13,6 +13,8 @@
 #include "ayu/ui/settings/ayu_builder.h"
 #include "ayu/ui/settings/settings_ayu_utils.h"
 #include "ayu/ui/settings/settings_main.h"
+#include "core/application.h"
+#include "data/data_chat_filters.h"
 #include "settings/settings_builder.h"
 #include "settings/settings_common.h"
 #include "ui/boxes/single_choice_box.h"
@@ -58,6 +60,23 @@ void BuildChatsList(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 		.getter = &AyuSettings::chatListNoNestedTopics,
 		.setter = &AyuSettings::setChatListNoNestedTopics,
 	});
+
+	// AyuGram: a built-in "News feed" tab with all broadcast channels,
+	// include/exclude is configured from its context menu. The same is
+	// available as a button at the right end of the folder tabs row.
+	const auto controller = builder.controller();
+	if (const auto newsFeed = builder.addCheckbox({
+		.id = u"chat/news-feed"_q,
+		.title = tr::ayu_NewsFeedToggle(),
+		.checked = Core::App().settings().chatListNewsFeed(),
+		.keywords = { u"news"_q, u"feed"_q, u"channels"_q, u"broadcast"_q },
+	})) {
+		newsFeed->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			controller->session().data().chatsFilters()
+				.setNewsFeedEnabled(checked);
+		}, newsFeed->lifetime());
+	}
 
 	ayu.addSectionDivider();
 }
