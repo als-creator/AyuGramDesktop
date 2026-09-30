@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_chat_filters.h"
 
 #include "api/api_text_entities.h"
+#include "core/application.h"
 #include "history/history.h"
 #include "data/data_peer.h"
 #include "data/data_user.h"
@@ -35,6 +36,31 @@ namespace {
 constexpr auto kRefreshSuggestedTimeout = 7200 * crl::time(1000);
 constexpr auto kLoadExceptionsAfter = 100;
 constexpr auto kLoadExceptionsPerRequest = 100;
+
+ChatFilter MakeNewsFeedFilter(not_null<Session*> owner) {
+	using Flag = ChatFilter::Flag;
+	const auto accountId = owner->session().userId().bare;
+	auto never = base::flat_set<not_null<History*>>();
+	for (const auto &peerId : Core::App().settings().newsFeedExcluded(
+			accountId)) {
+		const auto peer = owner->peerLoaded(peerId);
+		if (peer) {
+			never.emplace(owner->history(peerId));
+		}
+	}
+	return ChatFilter(
+		kNewsFeedFilterId,
+		ChatFilterTitle{
+			.text = TextWithEntities{ tr::ayu_NewsFeedTab() },
+			.isStatic = true,
+		},
+		QString::fromUtf8("\xF0\x9F\x93\xA2"), // 📢
+		std::nullopt, // colorIndex
+		Flag::Channels,
+		{}, // always
+		{}, // pinned
+		std::move(never));
+}
 
 [[nodiscard]] crl::time RequestUpdatesEach(not_null<Session*> owner) {
 	const auto appConfig = &owner->session().appConfig();
@@ -549,6 +575,13 @@ void ChatFilters::received(const QVector<MTPDialogFilter> &list) {
 	if (!settings.hideAllChatsFolder() && !ranges::contains(begin(_list), end(_list), 0, &ChatFilter::id)) {
 		_list.insert(begin(_list), ChatFilter());
 	}
+	// AyuGram: the built-in "News feed" tab is placed right after "All",
+	// or first when "All" is hidden.
+	if (Core::App().settings().chatListNewsFeed()
+		&& !ranges::contains(_list, kNewsFeedFilterId, &ChatFilter::id)) {
+		applyInsert(MakeNewsFeedFilter(_owner), std::min(1, int(_list.size())));
+		changed = true;
+	}
 	if (changed || !_loaded || _reloading) {
 		_loaded = true;
 		_reloading = false;
@@ -880,6 +913,10 @@ const ChatFilter &ChatFilters::applyUpdatedPinned(
 	Assert(i != end(_list));
 
 	const auto limit = _owner->pinnedChatsLimit(id);
+	// AyuGram: the news feed tab includes all broadcast channels by its own
+	// rule, so pinning a chat there must not add it to "always" - that would
+	// turn the tab into a regular folder.
+	const auto newsFeed = (id == kNewsFeedFilterId);
 	auto always = i->always();
 	auto pinned = std::vector<not_null<History*>>();
 	pinned.reserve(dialogs.size());
@@ -888,7 +925,9 @@ const ChatFilter &ChatFilters::applyUpdatedPinned(
 			if (always.contains(history)) {
 				pinned.push_back(history);
 			} else if (always.size() < limit) {
-				always.insert(history);
+				if (!newsFeed) {
+					always.insert(history);
+				}
 				pinned.push_back(history);
 			}
 		}
@@ -915,15 +954,39 @@ void ChatFilters::saveOrder(
 	api->request(_saveOrderRequestId).cancel();
 
 	auto ids = QVector<MTPint>();
-	ids.reserve(order.size());
+	ids.reserve(order.size() + 1);
+	// AyuGram: the built-in news feed tab is not a real folder, it is never
+	// sent to the server, but it stays in the local list.
+	auto cloud = QVector<MTPint>();
+	cloud.reserve(order.size());
+	auto hasNewsFeed = false;
 	for (const auto id : order) {
 		ids.push_back(MTP_int(id));
+		if (id == kNewsFeedFilterId) {
+			hasNewsFeed = true;
+		} else {
+			cloud.push_back(MTP_int(id));
+		}
 	}
-	const auto wrapped = MTP_vector<MTPint>(ids);
+	// Keep the news feed tab in the list even if the caller passed an order
+	// without it (e.g. the folders settings saving a new cloud folder).
+	if (!hasNewsFeed) {
+		const auto newsFeed = ranges::find(
+			_list,
+			kNewsFeedFilterId,
+			&ChatFilter::id);
+		if (newsFeed != end(_list)) {
+			ids.insert(
+				std::min(
+					int(newsFeed - begin(_list)),
+					int(ids.size())),
+				MTP_int(kNewsFeedFilterId));
+		}
+	}
 
-	apply(MTP_updateDialogFilterOrder(wrapped));
+	apply(MTP_updateDialogFilterOrder(MTP_vector<MTPint>(ids)));
 	_saveOrderRequestId = api->request(MTPmessages_UpdateDialogFiltersOrder(
-		wrapped
+		MTP_vector<MTPint>(cloud)
 	)).afterRequest(_saveOrderAfterId).send();
 }
 
@@ -1198,6 +1261,46 @@ void ChatFilters::checkLoadMoreChatsLists() {
 	for (const auto &[id, entry] : _moreChatsData) {
 		loadMoreChatsList(id);
 	}
+}
+
+void ChatFilters::setNewsFeedEnabled(bool enabled) {
+	if (Core::App().settings().chatListNewsFeed() == enabled) {
+		return;
+	}
+	Core::App().settings().setChatListNewsFeed(enabled);
+	// AyuGram: the tab can be toggled from the tabs strip button, so the
+	// flag has to reach the settings file without waiting for a restart.
+	Core::App().saveSettings();
+	if (!enabled) {
+		remove(kNewsFeedFilterId);
+		return;
+	}
+	if (!ranges::contains(_list, kNewsFeedFilterId, &ChatFilter::id)) {
+		applyInsert(MakeNewsFeedFilter(_owner), std::min(1, int(_list.size())));
+	}
+	_listChanged.fire({});
+}
+
+bool ChatFilters::newsFeedEnabled() const {
+	return ranges::contains(_list, kNewsFeedFilterId, &ChatFilter::id);
+}
+
+void ChatFilters::setNewsFeedFilter(ChatFilter filter) {
+	Expects(filter.id() == kNewsFeedFilterId);
+
+	auto excluded = std::vector<PeerId>();
+	excluded.reserve(filter.never().size());
+	for (const auto &history : filter.never()) {
+		excluded.push_back(history->peer->id);
+	}
+	Core::App().settings().setNewsFeedExcluded(
+		_owner->session().userId().bare,
+		std::move(excluded));
+	set(MakeNewsFeedFilter(_owner));
+}
+
+int ChatFilters::newsFeedOffset() const {
+	return ranges::contains(_list, kNewsFeedFilterId, &ChatFilter::id) ? 1 : 0;
 }
 
 bool CanRemoveFromChatFilter(

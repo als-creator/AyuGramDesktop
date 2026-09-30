@@ -785,6 +785,17 @@ dialogsSearchTabs: SettingsSlider(defaultSettingsSlider) {
 chatsFiltersTabs: SettingsSlider(dialogsSearchTabs) {
 	rippleBottomSkip: 0px;
 }
+
+// AyuGram: the button that shows / hides the built-in news feed tab.
+// It is placed at the right end of the folder tabs strip, so it has to
+// fit into the height of the tabs row (33px) to not grow the strip.
+newsFeedToggle: IconButton(dialogsMenuToggle) {
+	width: 28px;
+	height: 28px;
+
+	rippleAreaPosition: point(0px, 0px);
+	rippleAreaSize: 28px;
+}
 dialogsFiltersTabsIconSkip: 5px;
 
 dialogsStoriesList: DialogsStoriesList {

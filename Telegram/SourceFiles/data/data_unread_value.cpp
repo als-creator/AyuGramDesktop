@@ -42,7 +42,9 @@ rpl::producer<Dialogs::UnreadState> MainListUnreadState(
 rpl::producer<Dialogs::UnreadState> UnreadStateValue(
 		not_null<Main::Session*> session,
 		FilterId filterId) {
-	if (filterId > 0) {
+	// AyuGram: the built-in "News feed" tab has a negative id too, its
+	// counter comes from its own chats list like any other tab.
+	if (filterId != 0) {
 		const auto filters = &session->data().chatsFilters();
 		return MainListUnreadState(filters->chatsList(filterId));
 	}
