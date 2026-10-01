@@ -610,7 +610,8 @@ HistoryInner::HistoryInner(
 	setupSwipeReplyAndBack();
 }
 
-void HistoryInner::checkAutoAdvanceNextChannel(int position) {
+void HistoryInner::checkAutoAdvanceNextChannel(
+		Ui::ElasticScrollPosition position) {
 	// AyuGram: on the built-in "News feed" tab the feed continues by
 	// itself. Reaching the very end of a channel opens the next unread
 	// channel of the feed, the same one the pull gesture would pick.
@@ -622,10 +623,16 @@ void HistoryInner::checkAutoAdvanceNextChannel(int position) {
 	// back, so that opening a channel at its newest message (which lands
 	// at the bottom right away) does not walk the whole feed away.
 	const auto max = _scroll->scrollTopMax();
-	if (!max) {
+	if (max <= 0) {
+		// The content is not scrollable yet, or it already fits the
+		// view, so there is no end to reach.
 		return;
-	} else if (position < max) {
+	} else if (position.value < max) {
 		_autoAdvanceArmed = true;
+		return;
+	} else if (position.overscroll) {
+		// Being pulled past the end is the pull gesture's own business,
+		// let it do the jump with its indicator and not ours.
 		return;
 	} else if (!_autoAdvanceArmed || !_history->loadedAtBottom()) {
 		return;

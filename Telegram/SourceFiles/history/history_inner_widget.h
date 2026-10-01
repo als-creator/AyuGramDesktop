@@ -557,7 +557,7 @@ private:
 	void setupSwipeReplyAndBack();
 	// AyuGram: the news feed continues to the next unread channel when
 	// the user scrolls a channel to its very end.
-	void checkAutoAdvanceNextChannel(int position);
+	void checkAutoAdvanceNextChannel(Ui::ElasticScrollPosition position);
 	[[nodiscard]] bool hasCopyRestriction(HistoryItem *item = nullptr) const;
 	[[nodiscard]] bool hasCopyMediaRestriction(
 		not_null<HistoryItem*> item) const;
