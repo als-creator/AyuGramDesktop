@@ -581,5 +581,7 @@
 	"experimental_fast_buttons_mode": "Режим быстрых кнопок",
 	"experimental_fast_buttons_mode_description": "Активировать кнопки инлайн-клавиатур клавишами 1-9.",
 	"experimental_folder_favorite_link": "Кнопка избранной папки",
-	"experimental_folder_favorite_link_description": "Кнопка «Избранное» внизу ленты папок, открывающая ссылку tg:// или t.me/."
+	"experimental_folder_favorite_link_description": "Кнопка «Избранное» внизу ленты папок, открывающая ссылку tg:// или t.me/.",
+	"MakeTabMain": "Сделать вкладку основной",
+	"ResetMainTab": "Сбросить основную вкладку"
 }

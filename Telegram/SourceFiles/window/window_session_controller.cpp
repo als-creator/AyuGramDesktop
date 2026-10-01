@@ -1570,7 +1570,7 @@ SessionController::SessionController(
 		uiShow(),
 		GifPauseReason::TabbedPanel))
 , _invitePeekTimer([=] { checkInvitePeek(); })
-, _activeChatsFilter(session->data().chatsFilters().defaultId())
+, _activeChatsFilter(session->data().chatsFilters().primaryId())
 , _openedFolder(window->id().folder())
 , _openedCommunity(window->id().community())
 , _defaultChatTheme(std::make_shared<Ui::ChatTheme>())
@@ -2028,7 +2028,8 @@ void SessionController::checkOpenedFilter() {
 		const auto i = ranges::find(list, filterId, &Data::ChatFilter::id);
 		if (i == end(list)) {
 			setActiveChatsFilter(
-				0,
+				// AyuGram: fall back to the tab marked as the main one.
+				session().data().chatsFilters().primaryId(),
 				{ anim::type::normal, anim::activation::background });
 		}
 	}
@@ -2044,7 +2045,7 @@ void SessionController::activateFirstChatsFilter() {
 
 	const auto &settings = AyuSettings::getInstance();
 	if (!settings.hideAllChatsFolder()) {
-		setActiveChatsFilter(session().data().chatsFilters().defaultId());
+		setActiveChatsFilter(session().data().chatsFilters().primaryId());
 	}
 }
 

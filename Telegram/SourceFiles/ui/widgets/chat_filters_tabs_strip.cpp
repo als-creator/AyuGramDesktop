@@ -84,6 +84,25 @@ void ShowMenu(
 		st::popupMenuWithIcons);
 	const auto addAction = Ui::Menu::CreateAddActionCallback(
 		state->menu.get());
+	const auto tabsFilters = &session->data().chatsFilters();
+
+	// AyuGram: "make this tab the main one". It is offered for the news
+	// feed tab and for the real folders, and it is reset from the "All" tab.
+	const auto primaryId = tabsFilters->primaryId();
+	const auto setPrimary = [=](FilterId value) {
+		tabsFilters->setPrimaryId(value);
+	};
+	if (id && id != primaryId) {
+		addAction(
+			tr::ayu_MakeTabMain(tr::now),
+			[=] { setPrimary(id); },
+			&st::menuIconFave);
+	} else if (primaryId) {
+		addAction(
+			tr::ayu_ResetMainTab(tr::now),
+			[=] { setPrimary(FilterId()); },
+			&st::menuIconUnfave);
+	}
 
 	if (id == kNewsFeedFilterId) {
 		addAction(

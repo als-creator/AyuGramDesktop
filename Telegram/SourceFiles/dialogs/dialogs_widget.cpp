@@ -3027,7 +3027,10 @@ void Widget::escape() {
 		} else if (controller()->isPrimary()) {
 			const auto filters = &session().data().chatsFilters();
 			const auto &list = filters->list();
-			const auto first = list.empty() ? FilterId() : list.front().id();
+			// AyuGram: return to the tab marked as the main one.
+			const auto first = list.empty()
+				? FilterId()
+				: filters->primaryId();
 			if (controller()->activeChatsFilterCurrent() != first) {
 				controller()->setActiveChatsFilter(first);
 			}

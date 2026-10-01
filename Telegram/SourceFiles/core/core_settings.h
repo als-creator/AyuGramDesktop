@@ -1033,6 +1033,10 @@ public:
 		uint64 accountId) const;
 	void setNewsFeedExcluded(uint64 accountId, std::vector<PeerId> value);
 
+	// AyuGram: the main tab of the chats list can be chosen per account.
+	[[nodiscard]] int chatFiltersMainTab(uint64 accountId) const;
+	void setChatFiltersMainTab(uint64 accountId, int id);
+
 	[[nodiscard]] Media::VideoQuality videoQuality() const;
 	void setVideoQuality(Media::VideoQuality quality);
 
@@ -1232,6 +1236,8 @@ private:
 		= Ui::ChatsFiltersTabsMode::Default;
 	rpl::variable<bool> _chatListNewsFeed = true;
 	base::flat_map<uint64, std::vector<PeerId>> _newsFeedExcluded;
+	// AyuGram: the tab that was marked as the main one per account.
+	base::flat_map<uint64, int> _chatFiltersMainTab;
 	base::flat_map<QByteArray, QByteArray> _prefs;
 
 	bool _tabbedReplacedWithInfo = false; // per-window
