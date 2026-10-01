@@ -472,7 +472,7 @@ HistoryInner::HistoryInner(
 	// behaviour, it is not guarded by a setting.
 	_scroll->positionValue(
 	) | rpl::on_next([=](Ui::ElasticScrollPosition position) {
-		checkAutoAdvanceNextChannel(position.value);
+		checkAutoAdvanceNextChannel(position);
 	}, lifetime());
 	session().data().itemRemoved(
 	) | rpl::on_next(
