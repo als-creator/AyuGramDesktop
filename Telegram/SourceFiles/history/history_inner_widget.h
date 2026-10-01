@@ -71,6 +71,7 @@ namespace Ui {
 class ChatTheme;
 class ChatStyle;
 class ElasticScroll;
+struct ElasticScrollPosition;
 class PopupMenu;
 struct ChatPaintContext;
 class PathShiftGradient;
