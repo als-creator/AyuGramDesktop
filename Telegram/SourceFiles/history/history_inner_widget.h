@@ -555,6 +555,9 @@ private:
 
 	void setupSharingDisallowed();
 	void setupSwipeReplyAndBack();
+	// AyuGram: the news feed continues to the next unread channel when
+	// the user scrolls a channel to its very end.
+	void checkAutoAdvanceNextChannel(int position);
 	[[nodiscard]] bool hasCopyRestriction(HistoryItem *item = nullptr) const;
 	[[nodiscard]] bool hasCopyMediaRestriction(
 		not_null<HistoryItem*> item) const;
@@ -573,6 +576,7 @@ private:
 	HistoryItem *_accessibilityFocusedItem = nullptr;
 	HistoryItem *_accessibilitySelectionAnchor = nullptr;
 	bool _announceFirstMessages = false;
+	bool _autoAdvanceArmed = false;
 	mutable base::flat_map<
 		not_null<const HistoryItem*>,
 		quintptr> _accessibilityIdentities;
