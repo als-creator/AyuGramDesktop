@@ -351,11 +351,16 @@ QByteArray Settings::serialize() const {
 		+ sizeof(qint32) // _pullToNextChannel
 		+ sizeof(qint32) // _chatFiltersTabsMode
 		+ sizeof(qint32) // _chatListNewsFeed
-		+ sizeof(qint32); // newsFeedExcluded count
+		+ sizeof(qint32) // newsFeedExcluded count
+		+ sizeof(qint32); // chatFiltersMainTab count
 	for (const auto &entry : _newsFeedExcluded) {
 		size += sizeof(quint64) // account id
 			+ sizeof(qint32) // peers count
 			+ sizeof(quint64) * entry.second.size();
+	}
+	for (const auto &entry : _chatFiltersMainTab) {
+		size += sizeof(quint64) // account id
+			+ sizeof(qint32); // value
 	}
 
 	auto result = QByteArray();
@@ -543,6 +548,10 @@ QByteArray Settings::serialize() const {
 			for (const auto &peer : entry.second) {
 				stream << quint64(peer.value);
 			}
+		}
+		stream << qint32(int(_chatFiltersMainTab.size()));
+		for (const auto &entry : _chatFiltersMainTab) {
+			stream << quint64(entry.first) << qint32(entry.second);
 		}
 	}
 
@@ -1114,9 +1123,30 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 				newsFeedExcluded[key] = std::move(peers);
 			}
 		}
+		// AyuGram: the main tab of the chats list, one entry per account.
+		auto chatFiltersMainTab = base::flat_map<uint64, int>();
+		if (!stream.atEnd()) {
+			qint32 mainTabCount = 0;
+			stream >> mainTabCount;
+			if (stream.status() == QDataStream::Ok
+				&& mainTabCount >= 0
+				&& mainTabCount <= kMaxAccounts) {
+				chatFiltersMainTab.reserve(mainTabCount);
+				for (auto i = 0; i != mainTabCount; ++i) {
+					auto key = quint64();
+					auto value = qint32();
+					stream >> key >> value;
+					if (stream.status() != QDataStream::Ok) {
+						break;
+					}
+					chatFiltersMainTab[key] = value;
+				}
+			}
+		}
 		if (stream.status() == QDataStream::Ok) {
 			_chatListNewsFeed = (chatListNewsFeed == 1);
 			_newsFeedExcluded = std::move(newsFeedExcluded);
+			_chatFiltersMainTab = std::move(chatFiltersMainTab);
 		}
 	}
 	if (stream.status() != QDataStream::Ok) {
@@ -1814,6 +1844,7 @@ void Settings::resetOnLastLogout() {
 	_chatFiltersTabsMode = Ui::ChatsFiltersTabsMode::Default;
 	_chatListNewsFeed = true;
 	_newsFeedExcluded.clear();
+	_chatFiltersMainTab.clear();
 	_pullToNextChannel = true;
 	_quickDialogAction = Dialogs::Ui::QuickDialogAction::Disabled;
 	_notificationsVolume = 100;
@@ -2059,6 +2090,24 @@ void Settings::setNewsFeedExcluded(
 		_newsFeedExcluded[accountId] = std::move(value);
 	}
 	_saveDelayed.fire({});
+}
+
+int Settings::chatFiltersMainTab(uint64 accountId) const {
+	const auto i = _chatFiltersMainTab.find(accountId);
+	return (i == end(_chatFiltersMainTab)) ? 0 : i->second;
+}
+
+void Settings::setChatFiltersMainTab(uint64 accountId, int id) {
+	if (id == 0) {
+		if (_chatFiltersMainTab.remove(accountId)) {
+			_saveDelayed.fire({});
+		}
+		return;
+	}
+	if (_chatFiltersMainTab[accountId] != id) {
+		_chatFiltersMainTab[accountId] = id;
+		_saveDelayed.fire({});
+	}
 }
 
 Dialogs::Ui::QuickDialogAction Settings::quickDialogAction() const {

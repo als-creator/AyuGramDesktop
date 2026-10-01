@@ -1005,8 +1005,25 @@ const std::vector<ChatFilter> &ChatFilters::list() const {
 	return _list;
 }
 
+FilterId ChatFilters::primaryId() const {
+	const auto accountId = _owner->session().userId().bare;
+	const auto id = FilterId(Core::App().settings().chatFiltersMainTab(accountId));
+	return (id && ranges::contains(_list, id, &ChatFilter::id))
+		? id
+		: lookupId(0);
+}
+
+void ChatFilters::setPrimaryId(FilterId id) {
+	const auto accountId = _owner->session().userId().bare;
+	if (FilterId(Core::App().settings().chatFiltersMainTab(accountId)) == id) {
+		return;
+	}
+	Core::App().settings().setChatFiltersMainTab(accountId, id);
+	Core::App().saveSettings();
+}
+
 FilterId ChatFilters::defaultId() const {
-	return lookupId(0);
+	return primaryId();
 }
 
 FilterId ChatFilters::lookupId(int index) const {
@@ -1275,6 +1292,15 @@ void ChatFilters::setNewsFeedEnabled(bool enabled) {
 	Core::App().saveSettings();
 	if (!enabled) {
 		remove(kNewsFeedFilterId);
+		// AyuGram: a hidden tab cannot stay the main one, otherwise the
+		// chat list would be opened on a tab that is not in the list. The
+		// stored value is checked directly, the tab is already gone from
+		// the list at this point.
+		const auto accountId = _owner->session().userId().bare;
+		if (Core::App().settings().chatFiltersMainTab(accountId)
+			== kNewsFeedFilterId) {
+			setPrimaryId(FilterId());
+		}
 		return;
 	}
 	if (!ranges::contains(_list, kNewsFeedFilterId, &ChatFilter::id)) {
