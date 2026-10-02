@@ -1,0 +1,250 @@
+name: AyuGram Windows (dev).
+
+on:
+  push:
+    branches:
+      - dev
+    paths-ignore:
+      - 'docs/**'
+      # The First set up step reads the SDK version out of this file, so a change
+      # to it has to rebuild.
+      - '!docs/building-win*.md'
+      - '**.md'
+      - 'changelog.txt'
+      - 'LEGAL'
+      - 'LICENSE'
+      - '.github/**'
+      - '!.github/workflows/win-release.yml'
+      - 'lib/xdg/**'
+      - 'snap/**'
+      - 'Telegram/build/docker/**'
+      - 'Telegram/Resources/uwp/**'
+      - 'Telegram/SourceFiles/platform/linux/**'
+      - 'Telegram/SourceFiles/platform/mac/**'
+      - 'Telegram/Telegram/**'
+      # configure.sh, not configure.bat: this pipeline builds through
+      # configure.bat, so edits to it must trigger a build.
+      - 'Telegram/configure.sh'
+      - 'Telegram/Telegram.plist'
+  workflow_dispatch:
+
+concurrency:
+  group: ayugram-windows-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+
+  windows:
+    name: Windows x64 (Debug)
+    runs-on: windows-latest
+
+    env:
+      UPLOAD_ARTIFACT: 'true'
+      PREPARE_PATH: Telegram/build/prepare/prepare.py
+      TBUILD: ${{ github.workspace }}\TBuild
+      API_ID: ${{ secrets.TDESKTOP_API_ID }}
+      API_HASH: ${{ secrets.TDESKTOP_API_HASH }}
+
+    defaults:
+      run:
+        shell: cmd
+
+    steps:
+      - name: Prepare directories.
+        run: |
+          mkdir %userprofile%\TBuild\Libraries
+          mklink /d %GITHUB_WORKSPACE%\TBuild %userprofile%\TBuild
+          echo TBUILD=%GITHUB_WORKSPACE%\TBuild>>%GITHUB_ENV%
+          echo LibrariesPath=%GITHUB_WORKSPACE%\TBuild\Libraries\win64>>%GITHUB_ENV%
+
+      - name: Get repository name.
+        shell: bash
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - name: Resolve API credentials.
+        shell: bash
+        run: |
+          if [ -n "$API_ID" ] && [ -n "$API_HASH" ]; then
+            echo "API_ARGS=-D TDESKTOP_API_ID=$API_ID -D TDESKTOP_API_HASH=$API_HASH" >> $GITHUB_ENV
+          else
+            echo "::warning::TDESKTOP_API_ID/HASH secrets are not set; building with the TEST API (works only with Telegram test servers)."
+            echo "API_ARGS=-D TDESKTOP_API_TEST=ON" >> $GITHUB_ENV
+          fi
+
+      # CMake 4.4 added policy CMP0218, under which cmark_gfm's CMakeLists.txt
+      # reads CMAKE_ERROR_DEPRECATED / CMAKE_WARN_DEPRECATED and dies. Pin below.
+      - name: Pin CMake below 4.4.
+        shell: bash
+        run: |
+          python -m pip install --user "cmake<4.4" ninja
+          SCRIPTS="$(python -c "import sysconfig; print(sysconfig.get_path('scripts', scheme='nt_user'))")"
+          echo "PINNED_CMAKE=$SCRIPTS" >> $GITHUB_ENV
+          echo "$SCRIPTS" >> $GITHUB_PATH
+
+      - name: Clone.
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          path: ${{ env.TBUILD }}\${{ env.REPO_NAME }}
+
+      - name: First set up.
+        shell: bash
+        run: |
+          DOCPATH=$TBUILD/$REPO_NAME/docs/building-win.md
+          SDK="$(grep "SDK version" $DOCPATH | sed -r 's/.*\*\*(.*)\*\* SDK version.*/\1/')"
+          echo "SDK=$SDK" >> $GITHUB_ENV
+          CMAKE_ROOT="$(cmake --system-information | sed -n 's/^CMAKE_ROOT "\([^"]*\)"$/\1/p')"
+          echo "CMAKE_ROOT=$CMAKE_ROOT" >> $GITHUB_ENV
+          sed -i '/CMAKE_${lang}_FLAGS_DEBUG_INIT/s/${_Zi}//' "$CMAKE_ROOT/Modules/Platform/Windows-MSVC.cmake"
+
+          echo "$(sha256sum $TBUILD/$REPO_NAME/$PREPARE_PATH | awk '{ print $1 }')" > CACHE_KEY.txt
+          echo "$SDK" >> CACHE_KEY.txt
+          echo "CACHE_KEY=$(sha256sum CACHE_KEY.txt | awk '{ print $1 }')" >> $GITHUB_ENV
+
+      - uses: Eden-CI/msvc-dev-cmd@master
+        name: Native Tools Command Prompt.
+        with:
+          arch: x64
+          sdk: ${{ env.SDK }}
+          toolset: '14.44'
+
+      - name: NuGet sources.
+        run: |
+          nuget sources Disable -Name "Microsoft Visual Studio Offline Packages"
+          nuget sources Add -Source https://api.nuget.org/v3/index.json & exit 0
+
+      - name: ThirdParty cache.
+        id: cache-third-party
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: ${{ runner.OS }}-w64-third-party-${{ env.CACHE_KEY }}
+
+      - name: Libraries cache.
+        id: cache-libs
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\*
+            !${{ env.LibrariesPath }}\cache_keys
+            !${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\*
+            !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: ${{ runner.OS }}-w64-libs-${{ env.CACHE_KEY }}
+          restore-keys: ${{ runner.OS }}-w64-libs-
+
+      - name: Qt cache.
+        id: cache-qt
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: ${{ runner.OS }}-w64-qt-${{ env.CACHE_KEY }}
+          restore-keys: ${{ runner.OS }}-w64-qt-
+
+      - name: Libraries.
+        run: |
+          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat skip-release silent qt6
+
+      # The runner's disk fills up while linking otherwise. Keeps headers and
+      # libs, drops object files and anything already installed elsewhere.
+      - name: Free up some disk space.
+        shell: bash
+        run: find $LibrariesPath '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' ')' -type f ')' -o -empty ')' -delete
+
+      - name: AyuGram Desktop build (Debug).
+        run: |
+          C:
+          cd %userprofile%\TBuild\%REPO_NAME%\Telegram
+
+          call configure.bat ^
+          x64 ^
+          qt6 ^
+          -D CMAKE_CONFIGURATION_TYPES=Debug ^
+          -D CMAKE_COMPILE_WARNING_AS_ERROR=ON ^
+          -D CMAKE_MSVC_DEBUG_INFORMATION_FORMAT= ^
+          -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF ^
+          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF ^
+          %API_ARGS%
+
+          # Debug is the memory hungry configuration and the runner has 16 GB.
+          # At unlimited --parallel MSBuild spawns one node per core, each a
+          # separate process buffering compiler output, and the CL task dies with
+          # System.OutOfMemoryException in TrackedVCToolTask.SarifToolOutputPipe.
+          cmake --build ..\out --config Debug --parallel 2
+
+      - name: Self-sign executables.
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference = 'Stop'
+          try {
+            $outDir = Join-Path $env:TBUILD "$env:REPO_NAME\out\Debug"
+            Write-Host "Self-signing executables in $outDir"
+            if (-not (Test-Path (Join-Path $outDir 'AyuGram.exe'))) {
+              Write-Warning 'AyuGram.exe not found, skipping sign'
+              exit 0
+            }
+
+            $cert = New-SelfSignedCertificate `
+              -Type CodeSigningCert `
+              -Subject 'CN=AyuGram Dev Build' `
+              -CertStoreLocation 'Cert:\CurrentUser\My' `
+              -KeyAlgorithm RSA -KeyLength 2048 `
+              -HashAlgorithm SHA256 `
+              -NotAfter (Get-Date).AddYears(1)
+
+            $thumb = $cert.Thumbprint
+            $pfx = Join-Path $env:TEMP 'ayu-dev.pfx'
+            $certPwd = ConvertTo-SecureString 'ayu-dev' -Force -AsPlainText
+            Export-PfxCertificate -Cert "Cert:\CurrentUser\My\$thumb" -FilePath $pfx -Password $certPwd | Out-Null
+
+            # Braces are required: PowerShell reads $env:ProgramFiles(x86) as the
+            # variable $env:ProgramFiles plus the literal "(x86)", which yields
+            # C:\Program Files(x86)\... and "Cannot find path".
+            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+              Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if (-not $signtool) {
+              Write-Warning 'signtool.exe not found, skipping sign'
+              exit 0
+            }
+            Write-Host "Using signtool: $($signtool.FullName)"
+
+            & $signtool.FullName sign `
+              /f $pfx /p 'ayu-dev' `
+              /fd SHA256 `
+              /tr 'http://timestamp.digicert.com' /td SHA256 `
+              /a (Join-Path $outDir 'AyuGram.exe')
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            & $signtool.FullName sign `
+              /f $pfx /p 'ayu-dev' `
+              /fd SHA256 `
+              /tr 'http://timestamp.digicert.com' /td SHA256 `
+              /a (Join-Path $outDir 'Updater.exe')
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            Write-Host 'Self-sign OK'
+          } catch {
+            Write-Warning "Signing skipped due to error: $($_.Exception.Message)"
+          }
+
+      - name: Move artifact.
+        if: env.UPLOAD_ARTIFACT == 'true'
+        run: |
+          set OUT=%TBUILD%\%REPO_NAME%\out\Debug
+          mkdir artifact
+          move %OUT%\AyuGram.exe artifact/
+          move %OUT%\Updater.exe artifact/
+          copy "%TBUILD%\%REPO_NAME%\Telegram\Resources\art\ayu\default\app_icon.ico" artifact\icon.ico >nul 2>&1
+
+      - uses: actions/upload-artifact@v7
+        name: Upload artifact.
+        if: env.UPLOAD_ARTIFACT == 'true'
+        with:
+          name: AyuGram Windows x64 (dev)
+          path: artifact\
