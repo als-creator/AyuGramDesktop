@@ -358,10 +358,9 @@ QByteArray Settings::serialize() const {
 			+ sizeof(qint32) // peers count
 			+ sizeof(quint64) * entry.second.size();
 	}
-	for (const auto &entry : _chatFiltersMainTab) {
-		size += sizeof(quint64) // account id
-			+ sizeof(qint32); // value
-	}
+	// Per account: quint64 account id and qint32 value, see the stream below.
+	size += (sizeof(quint64) + sizeof(qint32))
+		* size_t(_chatFiltersMainTab.size());
 
 	auto result = QByteArray();
 	result.reserve(size);
