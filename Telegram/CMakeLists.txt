@@ -24,15 +24,19 @@ add_subdirectory(codegen)
 # AyuGram filters
 add_subdirectory(lib_icu)
 # ustring.cpp:1003 narrows a long to an int32_t, which clang reports as
-# -Wshorten-64-to-32. cmake/options_mac.cmake suppresses that warning for our
-# own targets, but the suppression rides on common_options and this target does
-# not link it, so ICU keeps the warning and CMAKE_COMPILE_WARNING_AS_ERROR turns
-# it into a build failure. Only clang has this diagnostic, which is why the
-# Linux AppImage build never sees it. Target compile options land in the
-# response file, which the generator passes after the command line flags, so
-# this one takes precedence.
+# -Wshorten-64-to-32, and uidna.cpp calls uidna_toASCII_78, which ICU marks
+# deprecated. cmake/options_mac.cmake suppresses both of those for our own
+# targets, but the suppression rides on common_options and this target does not
+# link it, so ICU keeps them and CMAKE_COMPILE_WARNING_AS_ERROR turns them into
+# build failures. Only clang has these diagnostics, which is why the Linux
+# AppImage build never sees them. Target compile options land in the response
+# file, which the generator passes after the command line flags, so these take
+# precedence.
 if (APPLE)
-	target_compile_options(icu_regex_minimal PRIVATE -Wno-shorten-64-to-32)
+	target_compile_options(icu_regex_minimal PRIVATE
+		-Wno-shorten-64-to-32
+		-Wno-deprecated-declarations
+	)
 endif()
 # AyuGram filters
 
