@@ -215,31 +215,35 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -e
+          set -euo pipefail
           REPO="${{ github.repository }}"
           SRC="https://github.com/$REPO"
           VER=$(grep '^AppVersionStr ' Telegram/build/version | awk '{print $2}')
-          TAG="v${VER}-build-${{ github.run_number }}"
-          NOTES="Dev AppImage of [als-creator/AyuGramDesktop]($SRC) branch \`dev\`, commit \`$GITHUB_SHA\`, actual version \`v${VER}\`, in-app build number \`${{ github.run_number }}\`.
+          # The tag is keyed on the commit, not on this workflow's run counter,
+          # because Windows and macOS publish into the same release and each
+          # workflow has its own run_number. Keying on the commit also makes a
+          # re-run of the same push idempotent instead of cutting a new build.
+          SHORT="${GITHUB_SHA:0:7}"
+          TAG="v${VER}-dev-${SHORT}"
+          TITLE="AyuGram v${VER} (dev) - ${SHORT}"
+          ASSET="appimage/AyuGram-x86_64.AppImage"
 
-          ### Compact chat list
-          Single-line 37px rows, archive collapsed, no corner badges. Toggle: **Settings - Chats - Compact chat list**.
+          NOTES=$(mktemp)
+          {
+            printf 'Dev build of [als-creator/AyuGramDesktop](%s) branch `dev`, commit `%s`, actual version `v%s`.\n\n' "$SRC" "$GITHUB_SHA" "$VER"
+            printf 'This release is filled in by three workflows, so the assets appear as each platform finishes.\n\n'
+            cat docs/dev-release-notes.md
+          } > "$NOTES"
 
-          ### Compact nested chats
-          The same compact rows for the topic list inside an opened forum. Toggle: **Settings - Chats - Compact nested chats**.
-
-          ### Unified chat
-          Open a forum as a single chat feed from the chats list, the same mode as **Unified chat** in the chat menu, applied to every forum. The unread counters of the topics, of the chat in the list and of the feed itself follow the same read position. Toggle: **Settings - Chats - Unified chat**.
-
-          ### Forward modes menu
-          A menu button in the top right corner of the forward box: forward with sender names / without sender name / without names and captions, and the media grouping below. The choice is remembered and stays until it is changed back, and the active mode is shown in the box subtitle.
-
-          ### Russian translations
-          Full bundled Russian language pack: all settings and experimental functions are translated.
-
-          _Community fork of [AyuGramDesktop](https://github.com/AyuGram/AyuGramDesktop)._"
-          gh release create "$TAG" \
-            appimage/AyuGram-x86_64.AppImage \
-            --repo "$REPO" \
-            --title "AyuGram v${VER} (dev) - build ${{ github.run_number }}" \
-            --notes "$NOTES"
+          # Whichever platform finishes first creates the release, the others
+          # only add their asset to it.
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, adding the AppImage to it."
+            gh release upload "$TAG" "$ASSET" --repo "$REPO" --clobber
+          else
+            gh release create "$TAG" "$ASSET" \
+              --repo "$REPO" \
+              --title "$TITLE" \
+              --notes-file "$NOTES" \
+              --target "$GITHUB_SHA"
+          fi
