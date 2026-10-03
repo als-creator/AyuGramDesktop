@@ -2335,6 +2335,18 @@ if (WIN32)
         target_link_libraries(Telegram PRIVATE desktop-app::win_directx_helper)
     endif()
 
+    # Qt 6.11's qdnslookup_win.cpp calls DnsQueryEx,
+    # DnsWriteQuestionToBuffer_W and DnsExtractRecordsFromMessage_W, which live
+    # in dnsapi.lib. Without it the link ends in:
+    #   Qt6Networkd.lib(qdnslookup_win.cpp.obj) : error LNK2019: unresolved
+    #     external symbol DnsQueryEx
+    #   fatal error LNK1120: 3 unresolved externals
+    # Upstream tdesktop reaches the same Qt without naming dnsapi, so it arrives
+    # through the Qt interface target here and is not being applied. Naming the
+    # system library directly is what the code actually calls into; a duplicate
+    # on the link line is ignored by the linker.
+    target_link_libraries(Telegram PRIVATE dnsapi)
+
     target_link_options(Telegram PRIVATE /PDBPAGESIZE:8192)
 elseif (APPLE)
     if (NOT DESKTOP_APP_USE_PACKAGED)
