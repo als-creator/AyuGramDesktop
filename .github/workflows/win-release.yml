@@ -180,6 +180,9 @@ jobs:
           echo "--- Libraries после: $(du -sh "$LibrariesPath" 2>/dev/null | cut -f1) ---"
 
       - name: AyuGram Desktop build (Debug).
+        # Rolling releases require the crash reporter to be off, so
+        # DESKTOP_APP_DISABLE_CRASH_REPORTS has to be ON here. It was OFF, which
+        # pulled crashpad into the Windows build while macOS and Linux had it off.
         run: |
           C:
           cd %userprofile%\TBuild\%REPO_NAME%\Telegram
@@ -191,7 +194,7 @@ jobs:
           -D CMAKE_COMPILE_WARNING_AS_ERROR=ON ^
           -D CMAKE_MSVC_DEBUG_INFORMATION_FORMAT= ^
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF ^
-          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF ^
+          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON ^
           %API_ARGS%
 
           # Debug is the memory hungry configuration and the runner has 16 GB.

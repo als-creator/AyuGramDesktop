@@ -109,6 +109,10 @@ jobs:
             echo "::warning::TDESKTOP_API_ID/HASH secrets are not set; building with the TEST API (works only with Telegram test servers)."
             API_ARGS="-D TDESKTOP_API_TEST=ON"
           fi
+          # Rolling releases depend on the client updating itself, so
+          # DESKTOP_APP_DISABLE_AUTOUPDATE has to stay OFF. It shipped as ON here,
+          # which left the Linux build without an updater while every other workflow
+          # had one.
           docker run --rm \
           -u $(id -u) \
           -v $PWD:/usr/src/tdesktop \
@@ -117,7 +121,7 @@ jobs:
           /usr/src/tdesktop/Telegram/build/docker/centos_env/build.sh \
           -D CMAKE_BUILD_TYPE=Release \
           $API_ARGS \
-          -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON \
+          -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF \
           -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON
 
       - name: Check binaries.
