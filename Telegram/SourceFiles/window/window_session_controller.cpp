@@ -2049,6 +2049,23 @@ void SessionController::activateFirstChatsFilter() {
 	}
 }
 
+void SessionController::showPrimaryChatsFilter() {
+	// AyuGram: go back to the tab marked as the main one. It has to be
+	// done when the chat list becomes visible again, otherwise a tab
+	// chosen with "make main" is remembered in the settings and shown in
+	// the context menu, yet the list keeps whatever tab was open before.
+	if (!isPrimary()
+		|| !session().data().chatsFilters().loaded()) {
+		return;
+	}
+	const auto primaryId = session().data().chatsFilters().primaryId();
+	if (activeChatsFilterCurrent() != primaryId) {
+		setActiveChatsFilter(
+			primaryId,
+			{ anim::type::normal, anim::activation::background });
+	}
+}
+
 bool SessionController::uniqueChatsInSearchResults(
 		const Dialogs::SearchState &state) const {
 	const auto global = (state.tab == Dialogs::ChatSearchTab::MyMessages)
@@ -3238,6 +3255,14 @@ void SessionController::showBackFromStack(const SectionShow &params) {
 	do {
 		const auto empty = content()->stackIsEmpty();
 		const auto shown = content()->showBackFromStack(params);
+		if (empty && !shown && content()->stackIsEmpty()) {
+			// AyuGram: the back arrow returns to the chat list, and the
+			// list goes back to the tab marked as the main one. Only when
+			// the stack is really empty on both sides and nothing was
+			// shown: popping a section inside a chat must not move the
+			// chat list while the chat is still open.
+			showPrimaryChatsFilter();
+		}
 		if (empty && !shown && content()->stackIsEmpty() && bad()) {
 			clearSectionStack(anim::type::instant);
 			window().close();

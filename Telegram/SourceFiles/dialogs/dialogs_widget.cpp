@@ -3024,16 +3024,13 @@ void Widget::escape() {
 			}
 		} else if (controller()->activeChatEntryCurrent().key) {
 			controller()->content()->dialogsCancelled();
-		} else if (controller()->isPrimary()) {
-			const auto filters = &session().data().chatsFilters();
-			const auto &list = filters->list();
+			// AyuGram: leaving a chat with Escape returns to the main
+			// tab, the same way the back arrow does.
+			controller()->showPrimaryChatsFilter();
+		} else {
 			// AyuGram: return to the tab marked as the main one.
-			const auto first = list.empty()
-				? FilterId()
-				: filters->primaryId();
-			if (controller()->activeChatsFilterCurrent() != first) {
-				controller()->setActiveChatsFilter(first);
-			}
+			// showPrimaryChatsFilter() checks isPrimary() on its own.
+			controller()->showPrimaryChatsFilter();
 		}
 	} else if (!_searchState.inChat
 		&& controller()->activeChatEntryCurrent().key) {
