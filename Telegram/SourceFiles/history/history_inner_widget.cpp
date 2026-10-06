@@ -410,7 +410,8 @@ HistoryInner::HistoryInner(
 	[=] { mouseActionUpdate(QCursor::pos()); setCursor(_cursor); },
 	[=] { return window()->isActiveWindow(); })
 , _scrollDateCheck([this] { scrollDateCheck(); })
-, _scrollDateHideTimer([this] { scrollDateHideByTimer(); }) {
+, _scrollDateHideTimer([this] { scrollDateHideByTimer(); })
+, _autoAdvanceTimer([this] { autoAdvanceNextChannel(); }) {
 	_history->delegateMixin()->setCurrent(this);
 	if (_migrated) {
 		_migrated->delegateMixin()->setCurrent(this);
@@ -468,8 +469,22 @@ HistoryInner::HistoryInner(
 	) | rpl::on_next([=] {
 		update();
 	}, lifetime());
-	// AyuGram: continue the chat list automatically. The default
-	// behaviour, it is not guarded by a setting.
+	// AyuGram: continue the chat list automatically when the end of a
+	// chat is reached. Guarded by a setting, and it follows whatever tab
+	// is open.
+	const auto refreshAutoAdvance = [=] {
+		_autoAdvanceEnabled = AyuSettings::getInstance()
+			.autoAdvanceEnabled();
+		if (!_autoAdvanceEnabled) {
+			// Turning it off must not leave a pending jump behind that
+			// would move the list while the user is reading.
+			_autoAdvanceArmed = false;
+			_autoAdvanceTimer.cancel();
+		}
+	};
+	AyuSettings::getInstance().autoAdvanceEnabledChanges(
+	) | rpl::on_next(refreshAutoAdvance, lifetime());
+	refreshAutoAdvance();
 	_scroll->positionValue(
 	) | rpl::on_next([=](Ui::ElasticScrollPosition position) {
 		checkAutoAdvanceNextChannel(position);
@@ -613,13 +628,20 @@ HistoryInner::HistoryInner(
 void HistoryInner::checkAutoAdvanceNextChannel(
 		Ui::ElasticScrollPosition position) {
 	// AyuGram: the chat list continues by itself. Reaching the very end
-	// of a chat opens the next unread chat of the current folder.
+	// of a chat opens the next unread chat of the current folder, but
+	// only after the end has been held still for autoAdvanceDelay(), see
+	// autoAdvanceNextChannel().
 	//
 	// AyuGram: this used to be restricted to the built-in "News feed" tab
 	// and to broadcast peers, which left the other folders without the
 	// continuation and was the only reason for the hardcoded filter id
 	// here. The folder is now taken from the controller, so the
 	// continuation follows whatever tab is open.
+	if (!_autoAdvanceEnabled) {
+		_autoAdvanceArmed = false;
+		_autoAdvanceTimer.cancel();
+		return;
+	}
 	// Arm on the first move away from the end and fire only on the way
 	// back, so that opening a chat at its newest message (which lands
 	// at the bottom right away) does not walk the whole list away.
@@ -630,6 +652,10 @@ void HistoryInner::checkAutoAdvanceNextChannel(
 		return;
 	} else if (position.value < max) {
 		_autoAdvanceArmed = true;
+		// Leaving the end breaks the dwell: the user went back up to
+		// read on, so a pending continuation must not move the list
+		// under them once it expires.
+		_autoAdvanceTimer.cancel();
 		return;
 	} else if (position.overscroll) {
 		// Being pulled past the end is the pull gesture's own business,
@@ -639,16 +665,46 @@ void HistoryInner::checkAutoAdvanceNextChannel(
 		return;
 	}
 	// One jump per arming, otherwise a chat opened at the bottom
-	// would chain into the next one and the next one.
+	// would chain into the next one and the next one. Disarming here
+	// also keeps repeated scroll events at the end from restarting the
+	// dwell over and over.
 	_autoAdvanceArmed = false;
+	_autoAdvanceTimer.callOnce(autoAdvanceDelay());
+}
+
+crl::time HistoryInner::autoAdvanceDelay() const {
+	// AyuGram: the dwell is a setting now, in whole seconds, so that
+	// there is a real chance to read the last post of a chat before the
+	// list moves on. Zero means "switch right away". The clamp keeps a
+	// hand edited settings file from producing a silly wait.
+	return crl::time(std::clamp(
+		AyuSettings::getInstance().autoAdvanceDelay(),
+		0,
+		AyuSettings::kAutoAdvanceMaxDelaySeconds)) * 1000;
+}
+
+void HistoryInner::autoAdvanceNextChannel() {
+	// AyuGram: the folder is whatever tab is open, not the hardcoded
+	// news feed id.
+	if (!_history->loadedAtBottom()) {
+		return;
+	}
+	// The content may have grown during the dwell, which moves the end
+	// away without emitting a scroll event. Staying where the user left
+	// them is better than yanking them into the next chat, so the bottom
+	// has to be reached again from the top before continuing.
+	const auto max = _scroll->scrollTopMax();
+	if ((max <= 0) || (_scroll->scrollTop() < max)) {
+		return;
+	}
 	// AyuGram: the read marking is computed while painting, and the jump
 	// below destroys this widget before Qt gets to that paint, so the
 	// post that was reached stayed unread and the counter did not go
 	// down. Force one paint now, while the widget is still alive. It is
-	// safe here: the jump is postponed to the event loop, never done
-	// from inside a paint. Whether the messages are actually marked read
-	// is still decided by markingMessagesRead(), so an unfocused window
-	// keeps not marking them, as it should.
+	// safe here: this runs from the dwell timer, never from inside a
+	// paint. Whether the messages are actually marked read is still
+	// decided by markingMessagesRead(), so an unfocused window keeps not
+	// marking them, as it should.
 	markReadMetricsStale();
 	repaint();
 	const auto list = _controller->session().data().chatsFilters().chatsList(
@@ -697,13 +753,13 @@ void HistoryInner::checkAutoAdvanceNextChannel(
 	if (!found) {
 		return;
 	}
-	// The jump is postponed, because this runs from inside the scroll
-	// stream of this very widget, while Qt is still dispatching an event
-	// to it. showHistory() rebuilds the owned HistoryInner and
-	// QScrollArea::setWidget() deletes the previous one, which is this
-	// widget: switching right here freed it before Qt was done with the
-	// dispatch, and the freed memory was walked as an event filter list
-	// later on, crashing on the next chat open.
+	// The jump is postponed, because the dwell timer may fire while Qt is
+	// still dispatching an event to this very widget. showHistory()
+	// rebuilds the owned HistoryInner and QScrollArea::setWidget()
+	// deletes the previous one, which is this widget: switching right
+	// here freed it before Qt was done with the dispatch, and the freed
+	// memory was walked as an event filter list later on, crashing on
+	// the next chat open.
 	// The guard drops the call if this widget dies first.
 	const auto target = not_null<History*>(found);
 	const auto controller = _controller;

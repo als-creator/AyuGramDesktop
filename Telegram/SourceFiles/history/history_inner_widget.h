@@ -556,9 +556,12 @@ private:
 
 	void setupSharingDisallowed();
 	void setupSwipeReplyAndBack();
-	// AyuGram: the news feed continues to the next unread channel when
-	// the user scrolls a channel to its very end.
+	// AyuGram: the chat list continues to the next unread chat when the
+	// user scrolls a chat to its very end. The switch itself is made by
+	// autoAdvanceNextChannel() once the dwell has expired.
 	void checkAutoAdvanceNextChannel(Ui::ElasticScrollPosition position);
+	void autoAdvanceNextChannel();
+	[[nodiscard]] crl::time autoAdvanceDelay() const;
 	[[nodiscard]] bool hasCopyRestriction(HistoryItem *item = nullptr) const;
 	[[nodiscard]] bool hasCopyMediaRestriction(
 		not_null<HistoryItem*> item) const;
@@ -578,6 +581,11 @@ private:
 	HistoryItem *_accessibilitySelectionAnchor = nullptr;
 	bool _announceFirstMessages = false;
 	bool _autoAdvanceArmed = false;
+	// AyuGram: a cached copy of the "auto advance" setting. It is checked
+	// on every scroll position change, and the settings live in a JSON
+	// file behind a lookup, so the cache is refreshed from the setting's
+	// change stream instead of being read per event.
+	bool _autoAdvanceEnabled = true;
 	mutable base::flat_map<
 		not_null<const HistoryItem*>,
 		quintptr> _accessibilityIdentities;
@@ -713,6 +721,9 @@ private:
 	Ui::Animations::Simple _scrollDateOpacity;
 	SingleQueuedInvokation _scrollDateCheck;
 	base::Timer _scrollDateHideTimer;
+	// AyuGram: the chat list continuation dwell, see
+	// checkAutoAdvanceNextChannel().
+	base::Timer _autoAdvanceTimer;
 	Element *_scrollDateLastItem = nullptr;
 	int _scrollDateLastItemTop = 0;
 	bool _scrollDateAfterDayCrossing = false;
