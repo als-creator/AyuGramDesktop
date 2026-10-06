@@ -25,6 +25,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_global_privacy.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
+#include "logs.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/chat/forward_options_box.h"
 #include "base/random.h"
@@ -3882,6 +3883,32 @@ void PeerMenuAddChannelMembers(
 	}));
 }
 
+namespace {
+
+// AyuGram: the server refuses to change the pinned state sometimes (for
+// example when the channel already has the maximum number of pinned
+// messages) and used to fail completely silently, so report the reason it
+// gave. Otherwise there is no way to tell a temporary failure from a hard
+// limit. If the description is empty (a proxy returned an empty answer, for
+// example) no toast is shown, a visually empty toast is useless, but the
+// cause is still left in the log.
+void ShowUpdatePinnedError(
+		Window::SessionController *controller,
+		const QString &where,
+		const MTP::Error &error) {
+	const auto description = error.description();
+	LOG(("RPC Error in %1: %2 %3: %4").arg(
+		where,
+		QString::number(error.code()),
+		error.type(),
+		description));
+	if (controller && !description.isEmpty()) {
+		controller->showToast(description, ApiWrap::kJoinErrorDuration);
+	}
+}
+
+} // namespace
+
 void ToggleMessagePinned(
 		not_null<Window::SessionNavigation*> navigation,
 		FullMsgId itemId,
@@ -3892,11 +3919,13 @@ void ToggleMessagePinned(
 	}
 	if (pin) {
 		navigation->parentController()->show(
-			Box(PinMessageBox, item),
+			Box(PinMessageBox, navigation->parentController(), item),
 			Ui::LayerOption::CloseOther);
 	} else {
 		const auto peer = item->history()->peer;
 		const auto session = &peer->session();
+		Window::SessionController *controller = navigation->parentController();
+		const auto weakController = base::make_weak(controller);
 		const auto callback = crl::guard(session, [=](Fn<void()> &&close) {
 			close();
 			session->api().request(MTPmessages_UpdatePinnedMessage(
@@ -3905,6 +3934,11 @@ void ToggleMessagePinned(
 				MTP_int(itemId.msg)
 			)).done([=](const MTPUpdates &result) {
 				session->api().applyUpdates(result);
+			}).fail([=](const MTP::Error &error) {
+				ShowUpdatePinnedError(
+					weakController.get(),
+					u"unpinMessage"_q,
+					error);
 			}).send();
 		});
 		navigation->parentController()->show(
@@ -3966,6 +4000,8 @@ void UnpinAllMessages(
 		not_null<Window::SessionNavigation*> navigation,
 		not_null<Data::Thread*> thread) {
 	const auto weak = base::make_weak(thread);
+	Window::SessionController *controller = navigation->parentController();
+	const auto weakController = base::make_weak(controller);
 	const auto callback = crl::guard(navigation, [=](Fn<void()> &&close) {
 		close();
 		const auto strong = weak.get();
@@ -3993,6 +4029,11 @@ void UnpinAllMessages(
 				} else {
 					history->unpinMessagesFor(topicRootId, monoforumPeerId);
 				}
+			}).fail([=](const MTP::Error &error) {
+				ShowUpdatePinnedError(
+					weakController.get(),
+					u"unpinAllMessages"_q,
+					error);
 			}).send();
 		};
 		sendRequest(sendRequest);
