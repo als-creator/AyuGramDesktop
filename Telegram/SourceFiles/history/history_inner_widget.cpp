@@ -468,7 +468,7 @@ HistoryInner::HistoryInner(
 	) | rpl::on_next([=] {
 		update();
 	}, lifetime());
-	// AyuGram: continue the news feed automatically. The default
+	// AyuGram: continue the chat list automatically. The default
 	// behaviour, it is not guarded by a setting.
 	_scroll->positionValue(
 	) | rpl::on_next([=](Ui::ElasticScrollPosition position) {
@@ -612,16 +612,17 @@ HistoryInner::HistoryInner(
 
 void HistoryInner::checkAutoAdvanceNextChannel(
 		Ui::ElasticScrollPosition position) {
-	// AyuGram: on the built-in "News feed" tab the feed continues by
-	// itself. Reaching the very end of a channel opens the next unread
-	// channel of the feed, the same one the pull gesture would pick.
-	if (_controller->activeChatsFilterCurrent() != kNewsFeedFilterId
-		|| !_peer->isBroadcast()) {
-		return;
-	}
+	// AyuGram: the chat list continues by itself. Reaching the very end
+	// of a chat opens the next unread chat of the current folder.
+	//
+	// AyuGram: this used to be restricted to the built-in "News feed" tab
+	// and to broadcast peers, which left the other folders without the
+	// continuation and was the only reason for the hardcoded filter id
+	// here. The folder is now taken from the controller, so the
+	// continuation follows whatever tab is open.
 	// Arm on the first move away from the end and fire only on the way
-	// back, so that opening a channel at its newest message (which lands
-	// at the bottom right away) does not walk the whole feed away.
+	// back, so that opening a chat at its newest message (which lands
+	// at the bottom right away) does not walk the whole list away.
 	const auto max = _scroll->scrollTopMax();
 	if (max <= 0) {
 		// The content is not scrollable yet, or it already fits the
@@ -637,19 +638,18 @@ void HistoryInner::checkAutoAdvanceNextChannel(
 	} else if (!_autoAdvanceArmed || !_history->loadedAtBottom()) {
 		return;
 	}
-	// One jump per arming, otherwise a channel opened at the bottom
+	// One jump per arming, otherwise a chat opened at the bottom
 	// would chain into the next one and the next one.
 	_autoAdvanceArmed = false;
 	const auto list = _controller->session().data().chatsFilters().chatsList(
-		kNewsFeedFilterId);
+		_controller->activeChatsFilterCurrent());
 	for (const auto &row : list->indexed()->all()) {
 		const auto history = row->history();
 		if (!history || (history == _history)) {
 			continue;
 		}
 		const auto peer = history->peer;
-		if (peer->isBroadcast()
-			&& (history->unreadCount() > 0)
+		if ((history->unreadCount() > 0)
 			&& !history->useTopPromotion()
 			&& peer->computeUnavailableReason().isEmpty()) {
 			// The jump is postponed, because this runs from inside the
