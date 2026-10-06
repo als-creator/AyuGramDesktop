@@ -641,37 +641,78 @@ void HistoryInner::checkAutoAdvanceNextChannel(
 	// One jump per arming, otherwise a chat opened at the bottom
 	// would chain into the next one and the next one.
 	_autoAdvanceArmed = false;
+	// AyuGram: the read marking is computed while painting, and the jump
+	// below destroys this widget before Qt gets to that paint, so the
+	// post that was reached stayed unread and the counter did not go
+	// down. Force one paint now, while the widget is still alive. It is
+	// safe here: the jump is postponed to the event loop, never done
+	// from inside a paint. Whether the messages are actually marked read
+	// is still decided by markingMessagesRead(), so an unfocused window
+	// keeps not marking them, as it should.
+	markReadMetricsStale();
+	repaint();
 	const auto list = _controller->session().data().chatsFilters().chatsList(
 		_controller->activeChatsFilterCurrent());
-	for (const auto &row : list->indexed()->all()) {
-		const auto history = row->history();
-		if (!history || (history == _history)) {
-			continue;
+	const auto &rows = list->indexed()->all();
+	// AyuGram: continue the list forward only. A chat that stayed unread
+	// for a reason of its own is still a candidate, and taking the first
+	// candidate in the list order then dragged the user back into a chat
+	// the list had already been to, bouncing back and forth over the last
+	// few chats once the unread ones ran out. Anything before the chat
+	// being read is behind the user, and must stay there.
+	const auto findTarget = [&](bool onlyAfterCurrent) -> History * {
+		auto passedCurrent = !onlyAfterCurrent;
+		for (const auto &row : rows) {
+			const auto history = row->history();
+			if (!history) {
+				continue;
+			} else if (history == _history) {
+				passedCurrent = true;
+				continue;
+			} else if (!passedCurrent) {
+				continue;
+			}
+			const auto peer = history->peer;
+			// AyuGram: a chat whose slice does not reach the bottom opens
+			// on a spinner or on a half loaded view, which is what the
+			// continuation looked like when it landed on such a chat.
+			// loadedAtBottom() defaults to true, so a chat that was never
+			// opened is still a valid candidate.
+			if ((history->unreadCount() > 0)
+				&& history->loadedAtBottom()
+				&& !history->useTopPromotion()
+				&& peer->computeUnavailableReason().isEmpty()) {
+				return history;
+			}
 		}
-		const auto peer = history->peer;
-		if ((history->unreadCount() > 0)
-			&& !history->useTopPromotion()
-			&& peer->computeUnavailableReason().isEmpty()) {
-			// The jump is postponed, because this runs from inside the
-			// scroll stream of this very widget, while Qt is still
-			// dispatching an event to it. showHistory() rebuilds the
-			// owned HistoryInner and QScrollArea::setWidget() deletes
-			// the previous one, which is this widget: switching right
-			// here freed it before Qt was done with the dispatch, and the
-			// freed memory was walked as an event filter list later on,
-			// crashing on the next chat open.
-			// The guard drops the call if this widget dies first.
-			const auto target = not_null<History*>(history);
-			const auto controller = _controller;
-			Ui::PostponeCall(crl::guard(this, [=] {
-				auto params = Window::SectionShow(
-					Window::SectionShow::Way::ClearStack);
-				params.slideFromBottom = true;
-				controller->showPeerHistory(target, params);
-			}));
-			return;
-		}
+		return nullptr;
+	};
+	// A chat that stopped matching the filter while it was open is not in
+	// the list any more, and then there is no current position to start
+	// after, so the whole list is the range worth looking at.
+	const auto inList = ranges::any_of(rows, [&](const auto &row) {
+		return (row->history() == _history);
+	});
+	const auto found = findTarget(inList);
+	if (!found) {
+		return;
 	}
+	// The jump is postponed, because this runs from inside the scroll
+	// stream of this very widget, while Qt is still dispatching an event
+	// to it. showHistory() rebuilds the owned HistoryInner and
+	// QScrollArea::setWidget() deletes the previous one, which is this
+	// widget: switching right here freed it before Qt was done with the
+	// dispatch, and the freed memory was walked as an event filter list
+	// later on, crashing on the next chat open.
+	// The guard drops the call if this widget dies first.
+	const auto target = not_null<History*>(found);
+	const auto controller = _controller;
+	Ui::PostponeCall(crl::guard(this, [=] {
+		auto params = Window::SectionShow(
+			Window::SectionShow::Way::ClearStack);
+		params.slideFromBottom = true;
+		controller->showPeerHistory(target, params);
+	}));
 }
 
 void HistoryInner::reactionChosen(const ChosenReaction &reaction) {
