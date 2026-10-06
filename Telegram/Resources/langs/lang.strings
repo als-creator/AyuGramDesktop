@@ -8757,6 +8757,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "ayu_RemoveMessageTail" = "Remove Message Tail";
 "ayu_HideShareButton" = "Hide Side \"Share\" Button";
 "ayu_ChatFoldersHeader" = "Chat Folders";
+"ayu_AutoAdvance" = "Automatically continue to the next unread chat";
+"ayu_AutoAdvanceDelay" = "Wait before switching";
 "ayu_SettingsContextMenuTitle" = "Choose when to show the item";
 "ayu_SettingsContextMenuDescription" = "Extended menu items will be displayed if you hold CTRL or SHIFT while right-clicking on the message.";
 "ayu_SettingsContextMenuItemHidden" = "Hidden";

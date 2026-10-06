@@ -134,6 +134,8 @@
 	"RemoveMessageTail_PC": "Убрать хвост у сообщений",
 	"HideShareButton_PC": "Скрыть боковую кнопку \"Поделиться\"",
 	"ChatFoldersHeader": "Папки",
+	"AutoAdvance": "Автоматически переходить к следующему непрочитанному чату",
+	"AutoAdvanceDelay": "Ждать перед переключением",
 	"SettingsContextMenuTitle": "Выберите, когда показывать пункт",
 	"SettingsContextMenuDescription": "Расширенные пункты меню будут показаны, если вы зажмёте клавишу CTRL или SHIFT при клике правой кнопкой мыши на сообщение.",
 	"SettingsContextMenuItemHidden": "Скрывать",
