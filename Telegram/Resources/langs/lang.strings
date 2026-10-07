@@ -8759,6 +8759,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "ayu_ChatFoldersHeader" = "Chat Folders";
 "ayu_AutoAdvance" = "Automatically continue to the next unread chat";
 "ayu_AutoAdvanceDelay" = "Wait before switching";
+"ayu_SettingsSupport" = "Support settings";
+"ayu_SettingsSendSwitchBehavior" = "Send and switch behavior";
+"ayu_SettingsTemplatesAutocomplete" = "Enable templates autocomplete";
+"ayu_SettingsSendWithoutSound" = "Send all messages without sound";
+"ayu_SettingsLoadChatsPeriod" = "Load chats for a period";
+"ayu_SettingsChatLoadingPeriodOptions" = "Chat loading period options";
 "ayu_SettingsContextMenuTitle" = "Choose when to show the item";
 "ayu_SettingsContextMenuDescription" = "Extended menu items will be displayed if you hold CTRL or SHIFT while right-clicking on the message.";
 "ayu_SettingsContextMenuItemHidden" = "Hidden";
