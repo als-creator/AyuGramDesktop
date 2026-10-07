@@ -1169,7 +1169,7 @@ void BuildSupportSection(SectionBuilder &builder) {
 	builder.addSkip();
 	builder.addSubsectionTitle({
 		.id = u"chat/support"_q,
-		.title = rpl::single(u"Support settings"_q),
+		.title = tr::ayu_SettingsSupport(),
 		.keywords = { u"support"_q },
 	});
 	builder.addSkip(st::settingsSendTypeSkip);
@@ -1207,7 +1207,7 @@ void BuildSupportSection(SectionBuilder &builder) {
 	}, [] {
 		return SearchEntry{
 			.id = u"chat/support/switch"_q,
-			.title = u"Send and switch behavior"_q,
+			.title = tr::ayu_SettingsSendSwitchBehavior(tr::now),
 			.keywords = { u"switch"_q, u"next"_q, u"previous"_q, u"reply"_q },
 		};
 	});
@@ -1216,7 +1216,7 @@ void BuildSupportSection(SectionBuilder &builder) {
 
 	const auto templatesAutocomplete = builder.addCheckbox({
 		.id = u"chat/support/templates"_q,
-		.title = rpl::single(u"Enable templates autocomplete"_q),
+		.title = tr::ayu_SettingsTemplatesAutocomplete(),
 		.checked = session->settings().supportTemplatesAutocomplete(),
 		.keywords = { u"templates"_q, u"autocomplete"_q },
 	});
@@ -1231,7 +1231,7 @@ void BuildSupportSection(SectionBuilder &builder) {
 
 	const auto allSilent = builder.addCheckbox({
 		.id = u"chat/support/silent"_q,
-		.title = rpl::single(u"Send all messages without sound"_q),
+		.title = tr::ayu_SettingsSendWithoutSound(),
 		.checked = session->settings().supportAllSilent(),
 		.keywords = { u"silent"_q, u"sound"_q, u"mute"_q },
 	});
@@ -1246,7 +1246,7 @@ void BuildSupportSection(SectionBuilder &builder) {
 	builder.addSkip(st::settingsCheckboxesSkip);
 	builder.addSubsectionTitle({
 		.id = u"chat/support/chats-period"_q,
-		.title = rpl::single(u"Load chats for a period"_q),
+		.title = tr::ayu_SettingsLoadChatsPeriod(),
 		.keywords = { u"period"_q, u"days"_q },
 	});
 
@@ -1295,7 +1295,7 @@ void BuildSupportSection(SectionBuilder &builder) {
 	}, [] {
 		return SearchEntry{
 			.id = u"chat/support/chats-period/options"_q,
-			.title = u"Chat loading period options"_q,
+			.title = tr::ayu_SettingsChatLoadingPeriodOptions(tr::now),
 			.keywords = { u"week"_q, u"month"_q, u"year"_q },
 		};
 	});
@@ -2930,7 +2930,7 @@ void SetupSupport(
 		not_null<Ui::VerticalLayout*> container) {
 	Ui::AddSkip(container);
 
-	Ui::AddSubsectionTitle(container, rpl::single(u"Support settings"_q));
+	Ui::AddSubsectionTitle(container, tr::ayu_SettingsSupport());
 
 	Ui::AddSkip(container, st::settingsSendTypeSkip);
 
@@ -2977,7 +2977,7 @@ void SetupSupport(
 
 	Ui::AddSkip(inner, st::settingsCheckboxesSkip);
 
-	Ui::AddSubsectionTitle(inner, rpl::single(u"Load chats for a period"_q));
+	Ui::AddSubsectionTitle(inner, tr::ayu_SettingsLoadChatsPeriod());
 
 	SetupSupportChatsLimitSlice(controller, inner);
 
