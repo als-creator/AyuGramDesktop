@@ -179,6 +179,22 @@ jobs:
           df -h
           echo "--- Libraries после: $(du -sh "$LibrariesPath" 2>/dev/null | cut -f1) ---"
 
+      # The AppImage workflow stamps the run number into the app version, so the
+      # About box and the settings read 7.0.9.1234 there while Windows and macOS
+      # shipped a plain 7.0.9. The release tag is read from Telegram/build/version
+      # and is not affected by this.
+      - name: Stamp the build number into the app version.
+        shell: bash
+        run: |
+          set -e
+          FILE="$(cygpath -u "$TBUILD")/$REPO_NAME/Telegram/SourceFiles/core/version.h"
+          RUN="${{ github.run_number }}"
+          BASE=$(sed -n 's/^constexpr auto AppVersionStr = "\(.*\)";$/\1/p' "$FILE")
+          test -n "$BASE"
+          sed -i "s|^constexpr auto AppVersionStr = \".*\";|constexpr auto AppVersionStr = \"$BASE.$RUN\";|" "$FILE"
+          echo "App version $BASE -> $BASE.$RUN"
+          grep -n 'AppVersionStr ' "$FILE"
+
       - name: AyuGram Desktop build (Debug).
         # Rolling releases require the crash reporter to be off, so
         # DESKTOP_APP_DISABLE_CRASH_REPORTS has to be ON here. It was OFF, which
