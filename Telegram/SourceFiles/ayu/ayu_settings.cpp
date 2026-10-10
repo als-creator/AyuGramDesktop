@@ -516,11 +516,6 @@ void AyuSettings::validate() {
 	}
 
 	validateRange(_messageBubbleRadius, 0, 16, defaults._messageBubbleRadius);
-	validateRange(
-		_autoAdvanceDelay,
-		0,
-		kAutoAdvanceMaxDelaySeconds,
-		defaults._autoAdvanceDelay);
 	validateRange(_wideMultiplier, 0.5, 4.0, defaults._wideMultiplier);
 	validateRange(_avatarCorners, 0, AyuUiSettings::kMaxAvatarCorners, defaults._avatarCorners);
 
@@ -725,12 +720,6 @@ void AyuSettings::setHideFastShare(bool val) {
 void AyuSettings::setAutoAdvanceEnabled(bool val) {
 	if (_autoAdvanceEnabled.current() == val) return;
 	_autoAdvanceEnabled = val;
-	save();
-}
-
-void AyuSettings::setAutoAdvanceDelay(int val) {
-	if (_autoAdvanceDelay.current() == val) return;
-	_autoAdvanceDelay = val;
 	save();
 }
 
@@ -1169,7 +1158,6 @@ void to_json(nlohmann::json &j, const AyuSettings &s) {
 		{"simpleQuotesAndReplies", s._simpleQuotesAndReplies.current()},
 		{"hideFastShare", s._hideFastShare.current()},
 		{"autoAdvanceEnabled", s._autoAdvanceEnabled.current()},
-		{"autoAdvanceDelay", s._autoAdvanceDelay.current()},
 		{"autoAdvanceBroadcastOnly", s._autoAdvanceBroadcastOnly.current()},
 		{"replaceBottomInfoWithIcons", s._replaceBottomInfoWithIcons.current()},
 		{"deletedMark", s._deletedMark.current()},
@@ -1282,7 +1270,6 @@ void from_json(const nlohmann::json &j, AyuSettings &s) {
 	s._simpleQuotesAndReplies = j.value("simpleQuotesAndReplies", defaults._simpleQuotesAndReplies.current());
 	s._hideFastShare = j.value("hideFastShare", defaults._hideFastShare.current());
 	s._autoAdvanceEnabled = j.value("autoAdvanceEnabled", defaults._autoAdvanceEnabled.current());
-	s._autoAdvanceDelay = j.value("autoAdvanceDelay", defaults._autoAdvanceDelay.current());
 	s._autoAdvanceBroadcastOnly = j.value("autoAdvanceBroadcastOnly", defaults._autoAdvanceBroadcastOnly.current());
 	s._replaceBottomInfoWithIcons = j.value("replaceBottomInfoWithIcons", defaults._replaceBottomInfoWithIcons.current());
 	s._deletedMark = j.value("deletedMark", defaults._deletedMark.current());

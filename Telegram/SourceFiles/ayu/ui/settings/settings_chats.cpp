@@ -82,8 +82,18 @@ void BuildChatsList(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 		}, newsFeed->lifetime());
 	}
 
-	// AyuGram: what the chat list continuation steps through, every chat
-	// of the tab or broadcast channels only. The checkboxes are mutually
+	// AyuGram: the chat list turns like a carousel, but only by the user's
+	// own scrolling -- nothing moves on its own. The switch lives here, in
+	// the main Chats section, and is off by default.
+	ayu.addSettingToggle({
+		.id = u"ayu/autoAdvance"_q,
+		.title = tr::ayu_AutoAdvance(),
+		.getter = &AyuSettings::autoAdvanceEnabled,
+		.setter = &AyuSettings::setAutoAdvanceEnabled,
+	});
+
+	// AyuGram: what the chat carousel steps through, every chat of the
+	// tab or broadcast channels only. The checkboxes are mutually
 	// exclusive and "broadcast channels only" is the default.
 	builder.addSubsectionTitle(tr::ayu_AutoAdvanceScope());
 	const auto scopeEveryChat = builder.addCheckbox({

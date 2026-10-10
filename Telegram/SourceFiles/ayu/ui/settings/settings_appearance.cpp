@@ -250,37 +250,9 @@ void BuildChatFolders(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 		.setter = &AyuSettings::setHideAllChatsFolder,
 	});
 
-	// AyuGram: the chat list continues to the next unread chat on its
-	// own. The switch turns it off, the slider says how long the last
-	// chat has to be held still before the jump happens, so there is
-	// time to read the post that was reached. The slider only exists
-	// while the switch is on: with the continuation off it would be a
-	// control that does nothing.
-	ayu.addSettingToggle({
-		.id = u"ayu/autoAdvance"_q,
-		.title = tr::ayu_AutoAdvance(),
-		.getter = &AyuSettings::autoAdvanceEnabled,
-		.setter = &AyuSettings::setAutoAdvanceEnabled,
-	});
-	builder.scope([&] {
-		// Whole seconds, stored as they are shown. The number of steps
-		// is one more than the largest value, because the steps are the
-		// indices 0 to steps - 1 and indexToValue is the identity here.
-		ayu.addSlider({
-			.id = u"ayu/autoAdvanceDelay"_q,
-			.title = tr::ayu_AutoAdvanceDelay(),
-			.steps = AyuSettings::kAutoAdvanceMaxDelaySeconds + 1,
-			.current = AyuSettings::getInstance().autoAdvanceDelay(),
-			.indexToValue = [](int index) { return index; },
-			.onChanged = nullptr,
-			.onFinalChanged = [](int seconds) {
-				AyuSettings::getInstance().setAutoAdvanceDelay(seconds);
-			},
-			.formatLabel = [](int seconds) {
-				return tr::lng_seconds_tiny(tr::now, lt_count, seconds);
-			},
-		});
-	}, AyuSettings::getInstance().autoAdvanceEnabledValue());
+	// AyuGram: the chat carousel switch lives in the Chats section now,
+	// next to what it steps through. Nothing continues on its own: the
+	// carousel moves only by the user's own scrolling.
 
 	ayu.addSectionDivider();
 }

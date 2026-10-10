@@ -556,14 +556,16 @@ private:
 
 	void setupSharingDisallowed();
 	void setupSwipeReplyAndBack();
-	// AyuGram: the chat list continues to the next unread chat when the
-	// user scrolls a chat to its very end. The switch itself is made by
-	// autoAdvanceNextChannel() once the dwell has expired.
+	// AyuGram: the chat list turns like a carousel when the user scrolls a
+	// chat to its very end, but only by the user's own scrolling -- nothing
+	// continues on its own. This only decides that the end was reached and
+	// arms the jump, which autoAdvanceNextChannel() then performs right
+	// away. Scrolling the chat up from its end opens the previous chat of
+	// the tab instead, see autoAdvancePreviousChannel().
 	void checkAutoAdvanceNextChannel(Ui::ElasticScrollPosition position);
 	void autoAdvanceNextChannel();
 	void autoAdvancePreviousChannel();
 	[[nodiscard]] History *findAutoAdvanceTarget(bool forward) const;
-	[[nodiscard]] crl::time autoAdvanceDelay() const;
 	[[nodiscard]] bool hasCopyRestriction(HistoryItem *item = nullptr) const;
 	[[nodiscard]] bool hasCopyMediaRestriction(
 		not_null<HistoryItem*> item) const;
@@ -583,20 +585,19 @@ private:
 	HistoryItem *_accessibilitySelectionAnchor = nullptr;
 	bool _announceFirstMessages = false;
 	bool _autoAdvanceArmed = false;
-	// AyuGram: armed while the user is within about a screen of the
-	// chat's bottom and fired when they scroll up past it, jumping to the
-	// previous chat of the tab. Independent from _autoAdvanceArmed, so
-	// the carousel can go both ways.
+	// AyuGram: armed while the chat is at its end and fired on the very
+	// first scroll up, jumping to the previous chat of the tab. Independent
+	// from _autoAdvanceArmed, so the carousel can go both ways.
 	bool _autoAdvanceTopArmed = false;
-	// AyuGram: a cached copy of "whether the auto-advance is limited to
+	// AyuGram: a cached copy of "whether the carousel is limited to
 	// broadcast channels". It is cached and refreshed together with
 	// _autoAdvanceEnabled, for the same reason.
 	bool _autoAdvanceBroadcastOnly = true;
-	// AyuGram: a cached copy of the "auto advance" setting. It is checked
+	// AyuGram: a cached copy of the "chat carousel" setting. It is checked
 	// on every scroll position change, and the settings live in a JSON
 	// file behind a lookup, so the cache is refreshed from the setting's
 	// change stream instead of being read per event.
-	bool _autoAdvanceEnabled = true;
+	bool _autoAdvanceEnabled = false;
 	mutable base::flat_map<
 		not_null<const HistoryItem*>,
 		quintptr> _accessibilityIdentities;
@@ -732,9 +733,6 @@ private:
 	Ui::Animations::Simple _scrollDateOpacity;
 	SingleQueuedInvokation _scrollDateCheck;
 	base::Timer _scrollDateHideTimer;
-	// AyuGram: the chat list continuation dwell, see
-	// checkAutoAdvanceNextChannel().
-	base::Timer _autoAdvanceTimer;
 	Element *_scrollDateLastItem = nullptr;
 	int _scrollDateLastItemTop = 0;
 	bool _scrollDateAfterDayCrossing = false;

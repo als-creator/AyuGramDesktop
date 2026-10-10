@@ -297,14 +297,11 @@ public:
 	[[nodiscard]] const QString &appIcon() const { return _appIcon.current(); }
 	[[nodiscard]] bool simpleQuotesAndReplies() const { return _simpleQuotesAndReplies.current(); }
 	[[nodiscard]] bool hideFastShare() const { return _hideFastShare.current(); }
-	// AyuGram: how long the end of a chat has to be held still before the
-	// chat list continues to the next unread one, in whole seconds.
-	// Zero means "switch right away". Shared with the validator so that
-	// the settings file and the widget can never disagree.
-	static constexpr int kAutoAdvanceMaxDelaySeconds = 30;
+	// AyuGram: the chat list turns like a carousel, but only by the user's
+	// own scrolling. "Broadcast channels only" narrows what it steps
+	// through to broadcast channels.
 
 	[[nodiscard]] bool autoAdvanceEnabled() const { return _autoAdvanceEnabled.current(); }
-	[[nodiscard]] int autoAdvanceDelay() const { return _autoAdvanceDelay.current(); }
 	[[nodiscard]] bool autoAdvanceBroadcastOnly() const { return _autoAdvanceBroadcastOnly.current(); }
 	[[nodiscard]] bool replaceBottomInfoWithIcons() const { return _replaceBottomInfoWithIcons.current(); }
 	[[nodiscard]] const QString &deletedMark() const { return _deletedMark.current(); }
@@ -400,7 +397,6 @@ public:
 	void setSimpleQuotesAndReplies(bool val);
 	void setHideFastShare(bool val);
 	void setAutoAdvanceEnabled(bool val);
-	void setAutoAdvanceDelay(int val);
 	void setAutoAdvanceBroadcastOnly(bool val);
 	void setReplaceBottomInfoWithIcons(bool val);
 	void setDeletedMark(const QString &val);
@@ -529,8 +525,6 @@ public:
 	[[nodiscard]] rpl::producer<bool> hideFastShareChanges() const { return _hideFastShare.changes(); }
 	[[nodiscard]] rpl::producer<bool> autoAdvanceEnabledValue() const { return _autoAdvanceEnabled.value(); }
 	[[nodiscard]] rpl::producer<bool> autoAdvanceEnabledChanges() const { return _autoAdvanceEnabled.changes(); }
-	[[nodiscard]] rpl::producer<int> autoAdvanceDelayValue() const { return _autoAdvanceDelay.value(); }
-	[[nodiscard]] rpl::producer<int> autoAdvanceDelayChanges() const { return _autoAdvanceDelay.changes(); }
 	[[nodiscard]] rpl::producer<bool> autoAdvanceBroadcastOnlyValue() const { return _autoAdvanceBroadcastOnly.value(); }
 	[[nodiscard]] rpl::producer<bool> autoAdvanceBroadcastOnlyChanges() const { return _autoAdvanceBroadcastOnly.changes(); }
 	[[nodiscard]] rpl::producer<bool> replaceBottomInfoWithIconsValue() const { return _replaceBottomInfoWithIcons.value(); }
@@ -693,8 +687,7 @@ private:
 	rpl::variable<QString> _appIcon;
 	rpl::variable<bool> _simpleQuotesAndReplies = false;
 	rpl::variable<bool> _hideFastShare = false;
-	rpl::variable<bool> _autoAdvanceEnabled = true;
-	rpl::variable<int> _autoAdvanceDelay = 10;
+	rpl::variable<bool> _autoAdvanceEnabled = false;
 	rpl::variable<bool> _autoAdvanceBroadcastOnly = true;
 	rpl::variable<bool> _replaceBottomInfoWithIcons = true;
 	rpl::variable<QString> _deletedMark = QString::fromUtf8("🧹");
