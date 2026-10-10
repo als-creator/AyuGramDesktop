@@ -1,31 +1,9 @@
 name: AyuGram Windows (dev).
 
+# Manual only. The rolling dev release is kept up to date by the AppImage
+# workflow on every push to `dev`; the Windows build is started on demand with
+# "Run workflow" instead of on each push.
 on:
-  push:
-    branches:
-      - dev
-    paths-ignore:
-      - 'docs/**'
-      # The First set up step reads the SDK version out of this file, so a change
-      # to it has to rebuild.
-      - '!docs/building-win*.md'
-      - '**.md'
-      - 'changelog.txt'
-      - 'LEGAL'
-      - 'LICENSE'
-      - '.github/**'
-      - '!.github/workflows/win-release.yml'
-      - 'lib/xdg/**'
-      - 'snap/**'
-      - 'Telegram/build/docker/**'
-      - 'Telegram/Resources/uwp/**'
-      - 'Telegram/SourceFiles/platform/linux/**'
-      - 'Telegram/SourceFiles/platform/mac/**'
-      - 'Telegram/Telegram/**'
-      # configure.sh, not configure.bat: this pipeline builds through
-      # configure.bat, so edits to it must trigger a build.
-      - 'Telegram/configure.sh'
-      - 'Telegram/Telegram.plist'
   workflow_dispatch:
 
 concurrency:
