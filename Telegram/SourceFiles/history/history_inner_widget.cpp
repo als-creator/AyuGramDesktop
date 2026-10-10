@@ -475,14 +475,19 @@ HistoryInner::HistoryInner(
 	const auto refreshAutoAdvance = [=] {
 		_autoAdvanceEnabled = AyuSettings::getInstance()
 			.autoAdvanceEnabled();
+		_autoAdvanceBroadcastOnly = AyuSettings::getInstance()
+			.autoAdvanceBroadcastOnly();
 		if (!_autoAdvanceEnabled) {
 			// Turning it off must not leave a pending jump behind that
 			// would move the list while the user is reading.
 			_autoAdvanceArmed = false;
+			_autoAdvanceTopArmed = false;
 			_autoAdvanceTimer.cancel();
 		}
 	};
 	AyuSettings::getInstance().autoAdvanceEnabledChanges(
+	) | rpl::on_next(refreshAutoAdvance, lifetime());
+	AyuSettings::getInstance().autoAdvanceBroadcastOnlyChanges(
 	) | rpl::on_next(refreshAutoAdvance, lifetime());
 	refreshAutoAdvance();
 	_scroll->positionValue(
@@ -630,46 +635,84 @@ void HistoryInner::checkAutoAdvanceNextChannel(
 	// AyuGram: the chat list continues by itself. Reaching the very end
 	// of a chat opens the next unread chat of the current folder, but
 	// only after the end has been held still for autoAdvanceDelay(), see
-	// autoAdvanceNextChannel().
+	// autoAdvanceNextChannel(). Scrolling up by about a screen opens the
+	// previous chat of the folder, which is how the user steps back into
+	// a channel they scrolled past, see autoAdvancePreviousChannel().
+	// The two directions are independent, so the carousel goes both ways
+	// while the tab and the settings still allow it, see
+	// findAutoAdvanceTarget().
 	//
 	// AyuGram: this used to be restricted to the built-in "News feed" tab
 	// and to broadcast peers, which left the other folders without the
 	// continuation and was the only reason for the hardcoded filter id
 	// here. The folder is now taken from the controller, so the
-	// continuation follows whatever tab is open.
+	// continuation follows whatever tab is open. Whether broadcast
+	// channels only are stepped through is decided by the auto-advance
+	// scope.
 	if (!_autoAdvanceEnabled) {
 		_autoAdvanceArmed = false;
+		_autoAdvanceTopArmed = false;
 		_autoAdvanceTimer.cancel();
 		return;
 	}
-	// Arm on the first move away from the end and fire only on the way
-	// back, so that opening a chat at its newest message (which lands
-	// at the bottom right away) does not walk the whole list away.
 	const auto max = _scroll->scrollTopMax();
-	if (max <= 0) {
-		// The content is not scrollable yet, or it already fits the
-		// view, so there is no end to reach.
-		return;
-	} else if (position.value < max) {
-		_autoAdvanceArmed = true;
-		// Leaving the end breaks the dwell: the user went back up to
-		// read on, so a pending continuation must not move the list
-		// under them once it expires.
-		_autoAdvanceTimer.cancel();
-		return;
-	} else if (position.overscroll) {
-		// Being pulled past the end is the pull gesture's own business,
-		// let it do the jump with its indicator and not ours.
-		return;
-	} else if (!_autoAdvanceArmed || !_history->loadedAtBottom()) {
-		return;
+	const auto scrollable = (max > 0);
+	// Bottom: arm on the first move away from the end and fire only on
+	// the way back, so that opening a chat at its newest message (which
+	// lands at the bottom right away) does not walk the whole list away.
+	if (scrollable) {
+		if (position.value < max) {
+			_autoAdvanceArmed = true;
+			// Leaving the end breaks the dwell: the user went back up to
+			// read on, so a pending continuation must not move the list
+			// under them once it expires.
+			_autoAdvanceTimer.cancel();
+		} else if (!position.overscroll
+			&& _autoAdvanceArmed
+			&& _history->loadedAtBottom()) {
+			// One jump per arming, otherwise a chat opened at the bottom
+			// would chain into the next one and the next one. Disarming
+			// here also keeps repeated scroll events at the end from
+			// restarting the dwell over and over. Being pulled past the
+			// end is the pull gesture's own business, let it do the jump
+			// with its indicator and not ours.
+			_autoAdvanceArmed = false;
+			_autoAdvanceTimer.callOnce(autoAdvanceDelay());
+		}
 	}
-	// One jump per arming, otherwise a chat opened at the bottom
-	// would chain into the next one and the next one. Disarming here
-	// also keeps repeated scroll events at the end from restarting the
-	// dwell over and over.
-	_autoAdvanceArmed = false;
-	_autoAdvanceTimer.callOnce(autoAdvanceDelay());
+	// AyuGram: when nothing unread is left the carousel falls back to
+	// the already-read chats, which open at their end and fit in the
+	// view sometimes, so there is no end left to scroll to there. Without
+	// this timer the feed would stall on the very first read chat for
+	// good. Let a fully read chat that stays still at its end continue
+	// the circle after the same dwell instead; any scroll away puts the
+	// user back in charge and cancels the dwell. An empty chat (its
+	// slice still loading) must not be jumped out of before it shows
+	// anything, and a pulled chat is the gesture's own business.
+	const auto readAtItsEnd = _history->loadedAtBottom()
+		&& (_history->unreadCount() == 0)
+		&& !_history->isEmpty()
+		&& !position.overscroll
+		&& ((!scrollable) || (position.value == max));
+	if (readAtItsEnd && !_autoAdvanceTimer.isActive()) {
+		_autoAdvanceTimer.callOnce(autoAdvanceDelay());
+	}
+	// Top: the return to the previous channel. It fires when the user
+	// scrolls up by about a screen's worth -- the newest message of the
+	// chat leaves the viewport, which is roughly where the feed would
+	// continue into the previous channel. That is a deliberate scroll, so
+	// no departure-then-return dance is needed, but one jump per visit
+	// still applies: the return is re-armed only while the user is back
+	// within a screen of the bottom.
+	if (scrollable) {
+		const auto boundary = std::max(max - _scroll->height(), 0);
+		if (position.value > boundary) {
+			_autoAdvanceTopArmed = true;
+		} else if (_autoAdvanceTopArmed) {
+			_autoAdvanceTopArmed = false;
+			autoAdvancePreviousChannel();
+		}
+	}
 }
 
 crl::time HistoryInner::autoAdvanceDelay() const {
@@ -684,82 +727,35 @@ crl::time HistoryInner::autoAdvanceDelay() const {
 }
 
 void HistoryInner::autoAdvanceNextChannel() {
-	// AyuGram: the folder is whatever tab is open, not the hardcoded
-	// news feed id.
+	// AyuGram: the jump itself, see findAutoAdvanceTarget() for what
+	// counts as a candidate.
 	if (!_history->loadedAtBottom()) {
 		return;
 	}
 	// The content may have grown during the dwell, which moves the end
 	// away without emitting a scroll event. Staying where the user left
 	// them is better than yanking them into the next chat, so the bottom
-	// has to be reached again from the top before continuing.
+	// has to be reached again from the top before continuing. A chat
+	// that fits the view has nothing to scroll, and the tiny window
+	// before its history is loaded is guarded separately: an empty chat
+	// must still be skipped, otherwise the carousel jumps out of it
+	// before it even shows anything.
 	const auto max = _scroll->scrollTopMax();
-	if ((max <= 0) || (_scroll->scrollTop() < max)) {
+	if ((_scroll->scrollTop() < max)
+		|| ((max <= 0) && (_history->isEmpty()))) {
 		return;
 	}
 	// AyuGram: the read marking is computed while painting, and the jump
 	// below destroys this widget before Qt gets to that paint, so the
 	// post that was reached stayed unread and the counter did not go
 	// down. Force one paint now, while the widget is still alive. It is
-	// safe here: this runs from the dwell timer, never from inside a
-	// paint. Whether the messages are actually marked read is still
-	// decided by markingMessagesRead(), so an unfocused window keeps not
-	// marking them, as it should.
+	// safe here: this runs from a scroll or timer callback, never from
+	// inside a paint. Whether the messages are actually marked read is
+	// still decided by markingMessagesRead(), so an unfocused window
+	// keeps not marking them, as it should.
 	markReadMetricsStale();
 	repaint();
-	// AyuGram: filter id 0 is the "All chats" tab and it is not a filter at
-	// all, it is the root list. chatsFilters().chatsList(0) is a different
-	// container that nothing ever fills (Session::chatsList() is what holds
-	// the chats with filter id 0), so the search looked for the target in
-	// an empty list and the continuation never happened on that tab and on
-	// the archive. The chat list picks it the same way, see
-	// Dialogs::Widget::refreshShownList().
-	const auto filterId = _controller->activeChatsFilterCurrent();
-	const auto list = (filterId
-		? _controller->session().data().chatsFilters().chatsList(filterId)
-		: _controller->session().data().chatsList(
-			_controller->openedFolder().current()));
-	const auto &rows = list->indexed()->all();
-	// AyuGram: continue the list forward only. A chat that stayed unread
-	// for a reason of its own is still a candidate, and taking the first
-	// candidate in the list order then dragged the user back into a chat
-	// the list had already been to, bouncing back and forth over the last
-	// few chats once the unread ones ran out. Anything before the chat
-	// being read is behind the user, and must stay there.
-	const auto findTarget = [&](bool onlyAfterCurrent) -> History * {
-		auto passedCurrent = !onlyAfterCurrent;
-		for (const auto &row : rows) {
-			const auto history = row->history();
-			if (!history) {
-				continue;
-			} else if (history == _history) {
-				passedCurrent = true;
-				continue;
-			} else if (!passedCurrent) {
-				continue;
-			}
-			const auto peer = history->peer;
-			// AyuGram: a chat whose slice does not reach the bottom opens
-			// on a spinner or on a half loaded view, which is what the
-			// continuation looked like when it landed on such a chat.
-			// loadedAtBottom() defaults to true, so a chat that was never
-			// opened is still a valid candidate.
-			if ((history->unreadCount() > 0)
-				&& history->loadedAtBottom()
-				&& !history->useTopPromotion()
-				&& peer->computeUnavailableReason().isEmpty()) {
-				return history;
-			}
-		}
-		return nullptr;
-	};
-	// A chat that stopped matching the filter while it was open is not in
-	// the list any more, and then there is no current position to start
-	// after, so the whole list is the range worth looking at.
-	const auto inList = ranges::any_of(rows, [&](const auto &row) {
-		return (row->history() == _history);
-	});
-	const auto found = findTarget(inList);
+	const auto found = findAutoAdvanceTarget(true);
 	if (!found) {
 		return;
 	}
@@ -779,6 +775,134 @@ void HistoryInner::autoAdvanceNextChannel() {
 		params.slideFromBottom = true;
 		controller->showPeerHistory(target, params);
 	}));
+}
+
+void HistoryInner::autoAdvancePreviousChannel() {
+	// AyuGram: the mirror image of autoAdvanceNextChannel(). Scrolling
+	// up by about a screen opens the chat that comes before the current
+	// one in the tab's list, wrapping around to the end of the list when
+	// the current chat is the first one there, and lands on its newest
+	// message. This is how the user steps back into a channel they
+	// scrolled past. The same paint, postpone and crash-safety reasons
+	// apply as in autoAdvanceNextChannel().
+	markReadMetricsStale();
+	repaint();
+	const auto found = findAutoAdvanceTarget(false);
+	if (!found) {
+		return;
+	}
+	const auto target = not_null<History*>(found);
+	const auto controller = _controller;
+	Ui::PostponeCall(crl::guard(this, [=] {
+		auto params = Window::SectionShow(
+			Window::SectionShow::Way::ClearStack);
+		params.slideFromBottom = true;
+		controller->showPeerHistory(target, params);
+	}));
+}
+
+History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
+	// AyuGram: the folder is whatever tab is open, not the hardcoded
+	// news feed id, and any chat counts, not only broadcast ones --
+	// unless the "broadcast channels only" scope is chosen.
+	const auto filterId = _controller->activeChatsFilterCurrent();
+	// AyuGram: filter id 0 is the "All chats" tab and it is not a filter
+	// at all, it is the root list. chatsFilters().chatsList(0) is a
+	// different container that nothing ever fills (Session::chatsList()
+	// is what holds the chats with filter id 0), so the search looked
+	// for the target in an empty list and the continuation never
+	// happened on that tab and on the archive. The chat list picks it
+	// the same way, see Dialogs::Widget::refreshShownList().
+	const auto list = (filterId
+		? _controller->session().data().chatsFilters().chatsList(filterId)
+		: _controller->session().data().chatsList(
+			_controller->openedFolder().current()));
+	const auto &rows = list->indexed()->all();
+	// AyuGram: a candidate is any chat the auto-advance may step into:
+	// it matches the scope, is not a top promotion, is not unavailable
+	// and is not the chat being read. A chat whose slice does not reach
+	// the bottom opens on a spinner or on a half loaded view, which is
+	// what the continuation looked like when it landed on such a chat.
+	// loadedAtBottom() defaults to true, so a chat that was never opened
+	// is still a valid candidate.
+	const auto allowed = [&](const History *history) {
+		return (history != nullptr)
+			&& (history != _history)
+			&& (!_autoAdvanceBroadcastOnly || history->peer->isBroadcast())
+			&& !history->useTopPromotion()
+			&& history->peer->computeUnavailableReason().isEmpty();
+	};
+	// Forward targets the next unread chat, backward targets the chat
+	// that the user just passed -- it may have been marked read by
+	// then, so stepping back does not wait for an unread one.
+	const auto unread = [&](const History *history) {
+		return allowed(history) && (history->unreadCount() > 0);
+	};
+	const auto size = int(rows.size());
+	const auto first = rows.begin();
+	auto current = -1;
+	for (auto i = 0; i != size; ++i) {
+		if ((*(first + i))->history() == _history) {
+			current = i;
+			break;
+		}
+	}
+	// A channel that stopped matching the filter while it was open is not
+	// in the list any more, and then there is no current position to start
+	// from, so the whole list is the range worth looking at.
+	const auto inList = (current >= 0);
+	const auto scan = [&](int begin, int end, int step, const auto &match)
+		-> History * {
+		for (auto i = begin; i != end; i += step) {
+			if (const auto history = (*(first + i))->history()) {
+				if (match(history)) {
+					return history;
+				}
+			}
+		}
+		return nullptr;
+	};
+	if (!inList) {
+		if (const auto found = forward
+			? scan(0, size, 1, unread)
+			: scan(size - 1, -1, -1, allowed)) {
+			return found;
+		}
+		// AyuGram: nothing unread is left in the whole tab, but the
+		// forward carousel must still close its circle -- without it the
+		// feed stopped dead at the bottom of the last channel. Fall back
+		// to the first chat of the tab (read or not), so the feed keeps
+		// turning; the read chats are shown with a short dwell, see
+		// checkAutoAdvanceNextChannel().
+		return forward ? scan(0, size, 1, allowed) : nullptr;
+	}
+	// Forward: scan the part of the list after the current chat, then
+	// wrap around to the part before it, so the carousel keeps turning
+	// until there are no unread chats left anywhere in the list.
+	// Backward: the mirror image -- first the part before the current
+	// chat, then the part after it, wrapping around the same way.
+	if (forward) {
+		if (const auto found = scan(current + 1, size, 1, unread)) {
+			return found;
+		}
+		if (const auto found = scan(0, current, 1, unread)) {
+			return found;
+		}
+		// AyuGram: nothing unread is left in the whole tab, but the
+		// carousel must still close its circle -- without it the feed
+		// stopped dead at the bottom of the last channel. Fall back to
+		// the chat after the current one (wrapping around), read or not,
+		// so the feed keeps turning; the read chats are shown with a
+		// short dwell, see checkAutoAdvanceNextChannel().
+		if (const auto found = scan(current + 1, size, 1, allowed)) {
+			return found;
+		}
+		return scan(0, current, 1, allowed);
+	}
+	if (const auto found = scan(current - 1, -1, -1, allowed)) {
+		return found;
+	}
+	return scan(size - 1, current, -1, allowed);
 }
 
 void HistoryInner::reactionChosen(const ChosenReaction &reaction) {

@@ -347,6 +347,7 @@ private:
 	void addCreateTopic();
 	void addViewAsMessages();
 	void addViewAsTopics();
+	void addUnifiedChat();
 	void addSearchTopics();
 	void addDeleteTopic();
 	void addVideoChat();
@@ -1770,6 +1771,36 @@ void Filler::addViewAsTopics() {
 	}, &st::menuIconAsTopics);
 }
 
+void Filler::addUnifiedChat() {
+	// AyuGram: the same toggle as in Settings > Chat > "Unified chat",
+	// so the menu checkbox of a forum mirrors it and they stay in sync.
+	// The chat starts opening as one message feed right away.
+	if (!_peer || !_peer->isForum()) {
+		return;
+	}
+	const auto checked = AyuSettings::getInstance().chatListNoNestedTopics();
+	_addAction({
+		.make = [=](not_null<Ui::PopupMenu*> popupMenu) {
+			auto item = base::make_unique_q<Menu::ItemWithCheck>(
+				popupMenu->menu(),
+				st::popupMenuWithIcons.menu,
+				Ui::CreateChild<QAction>(popupMenu->menu().get()),
+				nullptr,
+				nullptr);
+			item->action()->setText(tr::ayu_PeerMenuUnifiedChat(tr::now));
+			item->init(checked);
+			item->checkView()->checkedChanges(
+			) | rpl::filter([](bool value) {
+				return value != AyuSettings::getInstance()
+					.chatListNoNestedTopics();
+			}) | rpl::on_next([](bool value) {
+				AyuSettings::getInstance().setChatListNoNestedTopics(value);
+			}, item->lifetime());
+			return item;
+		},
+	});
+}
+
 void Filler::addSearchTopics() {
 	const auto forum = _peer ? _peer->forum() : nullptr;
 	if (!forum) {
@@ -1813,6 +1844,7 @@ void Filler::fillChatsListActions() {
 	addCreateTopic();
 	addInfo();
 	addViewAsMessages();
+	addUnifiedChat();
 	const auto &all = _peer->forum()->topicsList()->indexed()->all();
 	if (all.size() > kTopicsSearchMinCount) {
 		addSearchTopics();
@@ -1886,6 +1918,7 @@ void Filler::fillHistoryActions() {
 	AyuUi::AddJumpToBeginningAction(_peer, _thread, _controller, _addAction);
 	AyuUi::AddOpenChannelAction(_peer, _controller, _addAction);
 	addViewAsTopics();
+	addUnifiedChat();
 	addManageChat();
 	addStoryArchive();
 	addSupportInfo();

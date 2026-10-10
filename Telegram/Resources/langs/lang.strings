@@ -8759,6 +8759,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "ayu_ChatFoldersHeader" = "Chat Folders";
 "ayu_AutoAdvance" = "Automatically continue to the next unread chat";
 "ayu_AutoAdvanceDelay" = "Wait before switching";
+"ayu_AutoAdvanceScope" = "What to scroll through";
+"ayu_AutoAdvanceScopeEveryChat" = "All chats";
+"ayu_AutoAdvanceScopeBroadcast" = "Broadcast channels only";
+"ayu_AutoAdvanceScopeAbout" = "When you scroll a chat to its end, the next unread chat of the current tab opens automatically. The list wraps around, so the feed keeps turning in a circle, and scrolling up by about a screen's worth returns to the previous chat. Depending on the scope, it goes through every chat or through broadcast channels only.";
+"ayu_PeerMenuUnifiedChat" = "Unified chat";
 "ayu_SettingsSupport" = "Support settings";
 "ayu_SettingsSendSwitchBehavior" = "Send and switch behavior";
 "ayu_SettingsTemplatesAutocomplete" = "Enable templates autocomplete";

@@ -305,6 +305,7 @@ public:
 
 	[[nodiscard]] bool autoAdvanceEnabled() const { return _autoAdvanceEnabled.current(); }
 	[[nodiscard]] int autoAdvanceDelay() const { return _autoAdvanceDelay.current(); }
+	[[nodiscard]] bool autoAdvanceBroadcastOnly() const { return _autoAdvanceBroadcastOnly.current(); }
 	[[nodiscard]] bool replaceBottomInfoWithIcons() const { return _replaceBottomInfoWithIcons.current(); }
 	[[nodiscard]] const QString &deletedMark() const { return _deletedMark.current(); }
 	[[nodiscard]] const QString &editedMark() const { return _editedMark.current(); }
@@ -400,6 +401,7 @@ public:
 	void setHideFastShare(bool val);
 	void setAutoAdvanceEnabled(bool val);
 	void setAutoAdvanceDelay(int val);
+	void setAutoAdvanceBroadcastOnly(bool val);
 	void setReplaceBottomInfoWithIcons(bool val);
 	void setDeletedMark(const QString &val);
 	void setEditedMark(const QString &val);
@@ -529,6 +531,8 @@ public:
 	[[nodiscard]] rpl::producer<bool> autoAdvanceEnabledChanges() const { return _autoAdvanceEnabled.changes(); }
 	[[nodiscard]] rpl::producer<int> autoAdvanceDelayValue() const { return _autoAdvanceDelay.value(); }
 	[[nodiscard]] rpl::producer<int> autoAdvanceDelayChanges() const { return _autoAdvanceDelay.changes(); }
+	[[nodiscard]] rpl::producer<bool> autoAdvanceBroadcastOnlyValue() const { return _autoAdvanceBroadcastOnly.value(); }
+	[[nodiscard]] rpl::producer<bool> autoAdvanceBroadcastOnlyChanges() const { return _autoAdvanceBroadcastOnly.changes(); }
 	[[nodiscard]] rpl::producer<bool> replaceBottomInfoWithIconsValue() const { return _replaceBottomInfoWithIcons.value(); }
 	[[nodiscard]] rpl::producer<bool> replaceBottomInfoWithIconsChanges() const { return _replaceBottomInfoWithIcons.changes(); }
 	[[nodiscard]] rpl::producer<QString> deletedMarkValue() const { return _deletedMark.value(); }
@@ -691,6 +695,7 @@ private:
 	rpl::variable<bool> _hideFastShare = false;
 	rpl::variable<bool> _autoAdvanceEnabled = true;
 	rpl::variable<int> _autoAdvanceDelay = 10;
+	rpl::variable<bool> _autoAdvanceBroadcastOnly = true;
 	rpl::variable<bool> _replaceBottomInfoWithIcons = true;
 	rpl::variable<QString> _deletedMark = QString::fromUtf8("🧹");
 	rpl::variable<QString> _editedMark;

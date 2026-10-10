@@ -21,6 +21,7 @@
 #include "settings/settings_builder.h"
 #include "settings/settings_common.h"
 #include "ui/boxes/single_choice_box.h"
+#include "ui/widgets/checkbox.h"
 #include "styles/style_ayu_icons.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
@@ -80,6 +81,47 @@ void BuildChatsList(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 				.setNewsFeedEnabled(checked);
 		}, newsFeed->lifetime());
 	}
+
+	// AyuGram: what the chat list continuation steps through, every chat
+	// of the tab or broadcast channels only. The checkboxes are mutually
+	// exclusive and "broadcast channels only" is the default.
+	builder.addSubsectionTitle(tr::ayu_AutoAdvanceScope());
+	const auto scopeEveryChat = builder.addCheckbox({
+		.id = u"ayu/autoAdvanceScopeEveryChat"_q,
+		.title = tr::ayu_AutoAdvanceScopeEveryChat(),
+		.checked = !AyuSettings::getInstance().autoAdvanceBroadcastOnly(),
+		.keywords = { u"auto"_q, u"advance"_q, u"scroll"_q, u"carousel"_q },
+	});
+	const auto scopeBroadcastOnly = builder.addCheckbox({
+		.id = u"ayu/autoAdvanceScopeBroadcast"_q,
+		.title = tr::ayu_AutoAdvanceScopeBroadcast(),
+		.checked = AyuSettings::getInstance().autoAdvanceBroadcastOnly(),
+		.keywords = {
+			u"auto"_q,
+			u"advance"_q,
+			u"scroll"_q,
+			u"carousel"_q,
+			u"channels"_q,
+			u"broadcast"_q,
+		},
+	});
+	if (scopeEveryChat && scopeBroadcastOnly) {
+		scopeEveryChat->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			AyuSettings::getInstance().setAutoAdvanceBroadcastOnly(!checked);
+			scopeBroadcastOnly->setChecked(
+				!checked,
+				Ui::Checkbox::NotifyAboutChange::DontNotify);
+		}, scopeEveryChat->lifetime());
+		scopeBroadcastOnly->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			AyuSettings::getInstance().setAutoAdvanceBroadcastOnly(checked);
+			scopeEveryChat->setChecked(
+				!checked,
+				Ui::Checkbox::NotifyAboutChange::DontNotify);
+		}, scopeBroadcastOnly->lifetime());
+	}
+	builder.addDividerText(tr::ayu_AutoAdvanceScopeAbout());
 
 	ayu.addSectionDivider();
 }

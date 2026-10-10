@@ -734,6 +734,12 @@ void AyuSettings::setAutoAdvanceDelay(int val) {
 	save();
 }
 
+void AyuSettings::setAutoAdvanceBroadcastOnly(bool val) {
+	if (_autoAdvanceBroadcastOnly.current() == val) return;
+	_autoAdvanceBroadcastOnly = val;
+	save();
+}
+
 void AyuSettings::setReplaceBottomInfoWithIcons(bool val) {
 	if (_replaceBottomInfoWithIcons.current() == val) return;
 	_replaceBottomInfoWithIcons = val;
@@ -1164,6 +1170,7 @@ void to_json(nlohmann::json &j, const AyuSettings &s) {
 		{"hideFastShare", s._hideFastShare.current()},
 		{"autoAdvanceEnabled", s._autoAdvanceEnabled.current()},
 		{"autoAdvanceDelay", s._autoAdvanceDelay.current()},
+		{"autoAdvanceBroadcastOnly", s._autoAdvanceBroadcastOnly.current()},
 		{"replaceBottomInfoWithIcons", s._replaceBottomInfoWithIcons.current()},
 		{"deletedMark", s._deletedMark.current()},
 		{"editedMark", s._editedMark.current()},
@@ -1276,6 +1283,7 @@ void from_json(const nlohmann::json &j, AyuSettings &s) {
 	s._hideFastShare = j.value("hideFastShare", defaults._hideFastShare.current());
 	s._autoAdvanceEnabled = j.value("autoAdvanceEnabled", defaults._autoAdvanceEnabled.current());
 	s._autoAdvanceDelay = j.value("autoAdvanceDelay", defaults._autoAdvanceDelay.current());
+	s._autoAdvanceBroadcastOnly = j.value("autoAdvanceBroadcastOnly", defaults._autoAdvanceBroadcastOnly.current());
 	s._replaceBottomInfoWithIcons = j.value("replaceBottomInfoWithIcons", defaults._replaceBottomInfoWithIcons.current());
 	s._deletedMark = j.value("deletedMark", defaults._deletedMark.current());
 	s._editedMark = j.value("editedMark", defaults._editedMark.current());

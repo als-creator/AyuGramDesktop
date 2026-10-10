@@ -561,6 +561,8 @@ private:
 	// autoAdvanceNextChannel() once the dwell has expired.
 	void checkAutoAdvanceNextChannel(Ui::ElasticScrollPosition position);
 	void autoAdvanceNextChannel();
+	void autoAdvancePreviousChannel();
+	[[nodiscard]] History *findAutoAdvanceTarget(bool forward) const;
 	[[nodiscard]] crl::time autoAdvanceDelay() const;
 	[[nodiscard]] bool hasCopyRestriction(HistoryItem *item = nullptr) const;
 	[[nodiscard]] bool hasCopyMediaRestriction(
@@ -581,6 +583,15 @@ private:
 	HistoryItem *_accessibilitySelectionAnchor = nullptr;
 	bool _announceFirstMessages = false;
 	bool _autoAdvanceArmed = false;
+	// AyuGram: armed while the user is within about a screen of the
+	// chat's bottom and fired when they scroll up past it, jumping to the
+	// previous chat of the tab. Independent from _autoAdvanceArmed, so
+	// the carousel can go both ways.
+	bool _autoAdvanceTopArmed = false;
+	// AyuGram: a cached copy of "whether the auto-advance is limited to
+	// broadcast channels". It is cached and refreshed together with
+	// _autoAdvanceEnabled, for the same reason.
+	bool _autoAdvanceBroadcastOnly = true;
 	// AyuGram: a cached copy of the "auto advance" setting. It is checked
 	// on every scroll position change, and the settings live in a JSON
 	// file behind a lookup, so the cache is refreshed from the setting's
