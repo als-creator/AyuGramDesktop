@@ -92,6 +92,26 @@ void BuildChatsList(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 		.setter = &AyuSettings::setAutoAdvanceEnabled,
 	});
 
+	// AyuGram: how long an edge of a chat has to be held still before the
+	// carousel steps over it, in whole seconds. The slider only exists
+	// while the carousel is on: with it off there is nothing to wait for.
+	builder.scope([&] {
+		ayu.addSlider({
+			.id = u"ayu/autoAdvanceDelay"_q,
+			.title = tr::ayu_AutoAdvanceDelay(),
+			.steps = AyuSettings::kAutoAdvanceMaxDelaySeconds + 1,
+			.current = AyuSettings::getInstance().autoAdvanceDelay(),
+			.indexToValue = [](int index) { return index; },
+			.onChanged = nullptr,
+			.onFinalChanged = [](int seconds) {
+				AyuSettings::getInstance().setAutoAdvanceDelay(seconds);
+			},
+			.formatLabel = [](int seconds) {
+				return tr::lng_seconds_tiny(tr::now, lt_count, seconds);
+			},
+		});
+	}, AyuSettings::getInstance().autoAdvanceEnabledValue());
+
 	// AyuGram: what the chat carousel steps through, every chat of the
 	// tab or broadcast channels only. The checkboxes are mutually
 	// exclusive and "broadcast channels only" is the default.

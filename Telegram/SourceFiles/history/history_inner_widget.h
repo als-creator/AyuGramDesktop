@@ -556,15 +556,18 @@ private:
 
 	void setupSharingDisallowed();
 	void setupSwipeReplyAndBack();
-	// AyuGram: the chat list turns like a carousel when the user scrolls a
-	// chat to its very end, but only by the user's own scrolling -- nothing
-	// continues on its own. This only decides that the end was reached and
-	// arms the jump, which autoAdvanceNextChannel() then performs right
-	// away. Scrolling the chat up from its end opens the previous chat of
-	// the tab instead, see autoAdvancePreviousChannel().
+	// AyuGram: the chat list turns like a carousel, but only by the user's
+	// own scrolling -- nothing continues on its own. Reaching the very end
+	// of a chat arms the forward jump, reaching its very first message arms
+	// the backward one, and both fire only after the edge has been held
+	// still for autoAdvanceDelay(), see autoAdvanceByTimer(). A quick flick
+	// never turns the carousel, so it cannot skip through chat after chat.
 	void checkAutoAdvanceNextChannel(Ui::ElasticScrollPosition position);
+	void armAutoAdvance(bool top);
+	void autoAdvanceByTimer();
 	void autoAdvanceNextChannel();
 	void autoAdvancePreviousChannel();
+	[[nodiscard]] crl::time autoAdvanceDelay() const;
 	[[nodiscard]] History *findAutoAdvanceTarget(bool forward) const;
 	[[nodiscard]] bool hasCopyRestriction(HistoryItem *item = nullptr) const;
 	[[nodiscard]] bool hasCopyMediaRestriction(
@@ -584,11 +587,19 @@ private:
 	HistoryItem *_accessibilityFocusedItem = nullptr;
 	HistoryItem *_accessibilitySelectionAnchor = nullptr;
 	bool _announceFirstMessages = false;
+	// AyuGram: the user has scrolled away from the very end of the chat at
+	// least once, so that returning to the end may arm the forward jump.
+	// A chat that opens at its newest message must not walk the list away
+	// on its own, so only a real departure-then-return counts.
 	bool _autoAdvanceArmed = false;
-	// AyuGram: armed while the chat is at its end and fired on the very
-	// first scroll up, jumping to the previous chat of the tab. Independent
-	// from _autoAdvanceArmed, so the carousel can go both ways.
+	// AyuGram: the user reached the very first message of the chat, which
+	// arms the backward jump. Independent from _autoAdvanceArmed, so the
+	// carousel can go both ways.
 	bool _autoAdvanceTopArmed = false;
+	// AyuGram: the direction of the pending jump. It is kept apart from the
+	// armed flags so that the dwell timer knows which way to step when it
+	// expires.
+	bool _autoAdvancePendingTop = false;
 	// AyuGram: a cached copy of "whether the carousel is limited to
 	// broadcast channels". It is cached and refreshed together with
 	// _autoAdvanceEnabled, for the same reason.
@@ -733,6 +744,9 @@ private:
 	Ui::Animations::Simple _scrollDateOpacity;
 	SingleQueuedInvokation _scrollDateCheck;
 	base::Timer _scrollDateHideTimer;
+	// AyuGram: the dwell of the chat carousel, see
+	// checkAutoAdvanceNextChannel().
+	base::Timer _autoAdvanceTimer;
 	Element *_scrollDateLastItem = nullptr;
 	int _scrollDateLastItemTop = 0;
 	bool _scrollDateAfterDayCrossing = false;

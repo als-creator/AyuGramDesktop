@@ -410,7 +410,8 @@ HistoryInner::HistoryInner(
 	[=] { mouseActionUpdate(QCursor::pos()); setCursor(_cursor); },
 	[=] { return window()->isActiveWindow(); })
 , _scrollDateCheck([this] { scrollDateCheck(); })
-, _scrollDateHideTimer([this] { scrollDateHideByTimer(); }) {
+, _scrollDateHideTimer([this] { scrollDateHideByTimer(); })
+, _autoAdvanceTimer([this] { autoAdvanceByTimer(); }) {
 	_history->delegateMixin()->setCurrent(this);
 	if (_migrated) {
 		_migrated->delegateMixin()->setCurrent(this);
@@ -468,9 +469,9 @@ HistoryInner::HistoryInner(
 	) | rpl::on_next([=] {
 		update();
 	}, lifetime());
-	// AyuGram: the chat list turns like a carousel when the user scrolls a
-	// chat to its very end, but only by the user's own scrolling. Guarded
-	// by a setting, and it follows whatever tab is open.
+	// AyuGram: the chat list turns like a carousel, but only by the user's
+	// own scrolling. Guarded by a setting, and it follows whatever tab is
+	// open.
 	const auto refreshAutoAdvance = [=] {
 		_autoAdvanceEnabled = AyuSettings::getInstance()
 			.autoAdvanceEnabled();
@@ -481,6 +482,8 @@ HistoryInner::HistoryInner(
 			// would move the list while the user is reading.
 			_autoAdvanceArmed = false;
 			_autoAdvanceTopArmed = false;
+			_autoAdvancePendingTop = false;
+			_autoAdvanceTimer.cancel();
 		}
 	};
 	AyuSettings::getInstance().autoAdvanceEnabledChanges(
@@ -631,14 +634,16 @@ HistoryInner::HistoryInner(
 void HistoryInner::checkAutoAdvanceNextChannel(
 		Ui::ElasticScrollPosition position) {
 	// AyuGram: the chat list turns like a carousel, but only by the user's
-	// own scrolling -- nothing continues on its own. Reaching the very end
-	// of a chat that was scrolled down to opens the next chat of the
-	// current folder right away, see autoAdvanceNextChannel(). Scrolling
-	// the chat up from its end opens the previous chat of the folder, which
-	// is how the user steps back into a chat they scrolled past, see
-	// autoAdvancePreviousChannel(). The two directions are independent, so
-	// the carousel goes both ways while the tab and the settings still
-	// allow it, see findAutoAdvanceTarget().
+	// own scrolling -- nothing continues on its own. The forward jump is
+	// armed by leaving the very end of a chat and fires once the user is
+	// back at that end and holds still for autoAdvanceDelay(); the backward
+	// jump is armed by reaching the very first message and fires after the
+	// same wait, see autoAdvanceByTimer(). Both land on the newest message
+	// of the target chat, see autoAdvanceNextChannel() and
+	// autoAdvancePreviousChannel(). Because a jump waits the delay out, a
+	// quick flick of the wheel cannot skip through chat after chat. The two
+	// directions are independent, so the carousel goes both ways while the
+	// tab and the settings still allow it, see findAutoAdvanceTarget().
 	//
 	// AyuGram: this used to be restricted to the built-in "News feed" tab
 	// and to broadcast peers, which left the other folders without the
@@ -649,60 +654,109 @@ void HistoryInner::checkAutoAdvanceNextChannel(
 	if (!_autoAdvanceEnabled) {
 		_autoAdvanceArmed = false;
 		_autoAdvanceTopArmed = false;
+		_autoAdvancePendingTop = false;
+		_autoAdvanceTimer.cancel();
 		return;
 	}
 	// AyuGram: the list is scrolled by the app itself as well -- a chat is
 	// opened at its newest message, and the panel above the input, like the
 	// reply panel, changes the height of the list and the list is pulled
-	// back to the end. Those scrolls must not turn the carousel, otherwise
-	// the chat the user is reading is left for the next one while they are
-	// writing a reply. HistoryWidget reports them through synteticScroll(),
-	// so only the user's own scrolling is taken into account.
+	// back to the end. Those scrolls must not arm or fire the carousel,
+	// otherwise the chat the user is reading is left for the next one while
+	// they are writing a reply. HistoryWidget reports them through
+	// synteticScroll(), so only the user's own scrolling counts.
 	const auto byUser = !_widget->synteticScroll();
+	if (!byUser) {
+		_autoAdvanceArmed = false;
+		_autoAdvanceTopArmed = false;
+		_autoAdvancePendingTop = false;
+		_autoAdvanceTimer.cancel();
+		return;
+	}
 	const auto max = _scroll->scrollTopMax();
 	const auto scrollable = (max > 0);
-	// Bottom: arm on a real move away from the end and fire on a real move
-	// back, so that opening a chat at its newest message (which lands at the
-	// bottom right away) does not walk the whole list away, and neither does
-	// the list laying itself out while a reply panel appears. The jump is
-	// immediate now that the dwell is gone: a chat that stays still on the
-	// screen waits for the user to turn the carousel.
-	if (scrollable) {
-		if (byUser && position.value < max) {
-			_autoAdvanceArmed = true;
-		} else if (byUser
-			&& !position.overscroll
-			&& _autoAdvanceArmed
-			&& _history->loadedAtBottom()) {
-			// One jump per arming, otherwise a chat opened at the bottom
-			// would chain into the next one and the next one. Being pulled
-			// past the end is the pull gesture's own business, let it do
-			// the jump with its indicator and not ours.
-			_autoAdvanceArmed = false;
-			autoAdvanceNextChannel();
-		} else if (!byUser && position.value >= max) {
-			// The app itself pulled the list to the end after a layout
-			// change, so there is nothing the user armed on the way back.
-			_autoAdvanceArmed = false;
+	// AyuGram: a chat that fits the view has no edge to scroll to, so the
+	// carousel follows the direction the user is pulling past the end
+	// instead. Without this the very first short chat the fallback of
+	// findAutoAdvanceTarget() lands on would stall the feed for good. An
+	// empty chat (its slice is still loading) is left alone, otherwise the
+	// carousel jumps out of it before it shows anything.
+	if (!scrollable) {
+		if (_history->isEmpty() || !_history->loadedAtBottom()) {
+			return;
 		}
-	}
-	// Top: the return to the previous chat. The threshold is zero now: the
-	// jump is armed while the end of the chat is in view and fires on the
-	// very first real scroll up, so a plain scroll up steps back at once --
-	// no full screen and no trip to the oldest messages is needed. A chat
-	// opens at its newest message, which lands at the end, so in the normal
-	// case the first move up goes straight to the previous chat; one jump
-	// per visit still applies. As at the bottom, only a real scroll may fire
-	// it; the "end is in view" state is tracked for every scroll, including
-	// the programmatic one that opens a chat at its end.
-	if (scrollable) {
-		if (byUser && _autoAdvanceTopArmed && position.value < max) {
-			_autoAdvanceTopArmed = false;
-			_autoAdvanceArmed = false;
-			autoAdvancePreviousChannel();
+		if (position.overscroll > 0) {
+			armAutoAdvance(false);
+		} else if (position.overscroll < 0) {
+			armAutoAdvance(true);
 		}
-		_autoAdvanceTopArmed = (position.value >= max);
+		return;
 	}
+	if (position.overscroll) {
+		// AyuGram: being pulled past the end is the pull gesture's own
+		// business, it has its own indicator and its own jump.
+		return;
+	}
+	if (position.value >= max) {
+		// AyuGram: back at the very end. Fire the forward jump only after
+		// the user has actually left the end before, so that a chat opened
+		// at its newest message does not walk the list away on its own.
+		if (_autoAdvanceArmed && _history->loadedAtBottom()) {
+			armAutoAdvance(false);
+		}
+	} else if (position.value <= 0) {
+		// AyuGram: the very first message of the chat is reached, so the
+		// way back into the previous chat is open. Waiting the delay out at
+		// the edge is what turns the carousel, never the first scroll.
+		if (!_history->isEmpty()) {
+			armAutoAdvance(true);
+		}
+	} else {
+		// AyuGram: the user is in the middle of the chat, reading. Remember
+		// that the end was left and drop whatever was pending, so a jump
+		// cannot move the list under them.
+		_autoAdvanceArmed = true;
+		_autoAdvanceTopArmed = false;
+		_autoAdvancePendingTop = false;
+		_autoAdvanceTimer.cancel();
+	}
+}
+
+void HistoryInner::armAutoAdvance(bool top) {
+	// AyuGram: an edge of the chat has been reached. Every further event at
+	// that edge restarts the wait, so the jump happens only once the user
+	// stops turning the wheel and holds still for autoAdvanceDelay().
+	_autoAdvanceArmed = false;
+	_autoAdvanceTopArmed = top;
+	_autoAdvancePendingTop = top;
+	_autoAdvanceTimer.cancel();
+	_autoAdvanceTimer.callOnce(autoAdvanceDelay());
+}
+
+void HistoryInner::autoAdvanceByTimer() {
+	// AyuGram: the edge was held still long enough, so step over it in the
+	// direction that was armed. The pending state is cleared first: the
+	// jump rebuilds this very widget, and a stale flag must not fire again.
+	const auto top = _autoAdvancePendingTop;
+	_autoAdvancePendingTop = false;
+	_autoAdvanceArmed = false;
+	_autoAdvanceTopArmed = false;
+	if (top) {
+		autoAdvancePreviousChannel();
+	} else {
+		autoAdvanceNextChannel();
+	}
+}
+
+crl::time HistoryInner::autoAdvanceDelay() const {
+	// AyuGram: the wait is a setting in whole seconds, so there is a real
+	// chance to read the last (or first) message of a chat before the list
+	// moves on. Zero means "switch right away". The clamp keeps a hand
+	// edited settings file from producing a silly wait.
+	return crl::time(std::clamp(
+		AyuSettings::getInstance().autoAdvanceDelay(),
+		0,
+		AyuSettings::kAutoAdvanceMaxDelaySeconds)) * 1000;
 }
 
 void HistoryInner::autoAdvanceNextChannel() {
@@ -855,8 +909,8 @@ History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
 		// forward carousel must still close its circle -- without it the
 		// feed stopped dead at the bottom of the last channel. Fall back
 		// to the first chat of the tab (read or not), so the feed keeps
-		// turning; the read chats are shown with a short dwell, see
-		// checkAutoAdvanceNextChannel().
+		// turning; the user steps out of a read chat by scrolling to
+		// either edge and holding, see checkAutoAdvanceNextChannel().
 		return forward ? scan(0, size, 1, allowed) : nullptr;
 	}
 	// Forward: scan the part of the list after the current chat, then
@@ -875,8 +929,9 @@ History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
 		// carousel must still close its circle -- without it the feed
 		// stopped dead at the bottom of the last channel. Fall back to
 		// the chat after the current one (wrapping around), read or not,
-		// so the feed keeps turning; the read chats are shown with a
-		// short dwell, see checkAutoAdvanceNextChannel().
+		// so the feed keeps turning; the user steps out of a read chat by
+		// scrolling to either edge and holding, see
+		// checkAutoAdvanceNextChannel().
 		if (const auto found = scan(current + 1, size, 1, allowed)) {
 			return found;
 		}
