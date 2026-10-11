@@ -8363,8 +8363,14 @@ void HistoryWidget::updateHistoryGeometry(
 		bool initial,
 		bool loadedDown,
 		const ScrollChange &change) {
+	// AyuGram: laying the list out resizes it and may pull it back to the
+	// end; that is the app's own scrolling, so mark it as such for the whole
+	// update and keep the auto-advance carousel from turning on it.
+	const auto wasSynteticScrollEvent = _synteticScrollEvent;
+	_synteticScrollEvent = true;
 	const auto guard = gsl::finally([&] {
 		_itemRevealPending.clear();
+		_synteticScrollEvent = wasSynteticScrollEvent;
 	});
 	if (!_history
 		|| (initial && _historyInited)
@@ -11532,13 +11538,14 @@ bool HistoryWidget::touchScroll(const QPoint &delta) {
 }
 
 void HistoryWidget::synteticScrollToY(int y) {
+	const auto was = _synteticScrollEvent;
 	_synteticScrollEvent = true;
 	if (_scroll->scrollTop() == y) {
 		visibleAreaUpdated();
 	} else {
 		_scroll->scrollToY(y);
 	}
-	_synteticScrollEvent = false;
+	_synteticScrollEvent = was;
 }
 
 HistoryWidget::~HistoryWidget() {
