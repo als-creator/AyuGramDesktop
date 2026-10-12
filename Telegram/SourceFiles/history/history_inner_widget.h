@@ -26,6 +26,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include <QtGui/QPainterPath>
 
+class QWheelEvent;
+
 struct ClickContext;
 struct ClickHandlerContext;
 
@@ -563,6 +565,7 @@ private:
 	// still for autoAdvanceDelay(), see autoAdvanceByTimer(). A quick flick
 	// never turns the carousel, so it cannot skip through chat after chat.
 	void checkAutoAdvanceNextChannel(Ui::ElasticScrollPosition position);
+	void checkAutoAdvanceWheel(not_null<QWheelEvent*> event);
 	void armAutoAdvance(bool top);
 	void autoAdvanceByTimer();
 	void autoAdvanceNextChannel();
