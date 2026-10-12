@@ -2043,10 +2043,7 @@ void SessionController::activateFirstChatsFilter() {
 	}
 	_filtersActivated = true;
 
-	const auto &settings = AyuSettings::getInstance();
-	if (!settings.hideAllChatsFolder()) {
-		setActiveChatsFilter(session().data().chatsFilters().primaryId());
-	}
+	setActiveChatsFilter(session().data().chatsFilters().primaryId());
 }
 
 void SessionController::showPrimaryChatsFilter() {
