@@ -804,14 +804,15 @@ void HistoryInner::autoAdvanceByTimer() {
 }
 
 crl::time HistoryInner::autoAdvanceDelay() const {
-	// AyuGram: the wait is a setting in whole seconds, so there is a real
-	// chance to read the last (or first) message of a chat before the list
-	// moves on. Zero means "switch right away". The clamp keeps a hand
-	// edited settings file from producing a silly wait.
+	// AyuGram: the wait is a setting in milliseconds, so both a whole
+	// second and a fraction of it can be picked, while there is still a
+	// real chance to read the last (or first) message of a chat before the
+	// list moves on. Zero means "switch right away". The clamp keeps a
+	// hand edited settings file from producing a silly wait.
 	return crl::time(std::clamp(
-		AyuSettings::getInstance().autoAdvanceDelay(),
+		AyuSettings::getInstance().autoAdvanceDelayMs(),
 		0,
-		AyuSettings::kAutoAdvanceMaxDelaySeconds)) * 1000;
+		AyuSettings::kAutoAdvanceMaxDelayMs));
 }
 
 void HistoryInner::autoAdvanceNextChannel() {

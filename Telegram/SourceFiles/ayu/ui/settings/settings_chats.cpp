@@ -93,21 +93,33 @@ void BuildChatsList(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 	});
 
 	// AyuGram: how long an edge of a chat has to be held still before the
-	// carousel steps over it, in whole seconds. The slider only exists
-	// while the carousel is on: with it off there is nothing to wait for.
+	// carousel steps over it, in milliseconds, so a fraction of a second
+	// can be picked too. The slider only exists while the carousel is on:
+	// with it off there is nothing to wait for.
 	builder.scope([&] {
 		ayu.addSlider({
 			.id = u"ayu/autoAdvanceDelay"_q,
 			.title = tr::ayu_AutoAdvanceDelay(),
-			.steps = AyuSettings::kAutoAdvanceMaxDelaySeconds + 1,
-			.current = AyuSettings::getInstance().autoAdvanceDelay(),
-			.indexToValue = [](int index) { return index; },
-			.onChanged = nullptr,
-			.onFinalChanged = [](int seconds) {
-				AyuSettings::getInstance().setAutoAdvanceDelay(seconds);
+			.steps = AyuSettings::kAutoAdvanceMaxDelayMs
+				/ AyuSettings::kAutoAdvanceDelayStepMs + 1,
+			.current = AyuSettings::getInstance().autoAdvanceDelayMs(),
+			.indexToValue = [](int index) {
+				return index * AyuSettings::kAutoAdvanceDelayStepMs;
 			},
-			.formatLabel = [](int seconds) {
-				return tr::lng_seconds_tiny(tr::now, lt_count, seconds);
+			.onChanged = nullptr,
+			.onFinalChanged = [](int ms) {
+				AyuSettings::getInstance().setAutoAdvanceDelayMs(ms);
+			},
+			.formatLabel = [](int ms) {
+				return (ms < 1000)
+					? tr::lng_group_call_ptt_delay_ms(
+						tr::now,
+						lt_amount,
+						QString::number(ms))
+					: tr::lng_group_call_ptt_delay_s(
+						tr::now,
+						lt_amount,
+						QString::number(ms / 1000., 'f', 1));
 			},
 		});
 	}, AyuSettings::getInstance().autoAdvanceEnabledValue());
