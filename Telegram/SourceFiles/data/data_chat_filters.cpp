@@ -1006,10 +1006,19 @@ const std::vector<ChatFilter> &ChatFilters::list() const {
 }
 
 FilterId ChatFilters::primaryId() const {
+	// AyuGram: the main tab may be any tab, including the news feed tab
+	// with its reserved negative id, so the check is "is in the list" and
+	// not "is greater than zero". A stored 0 means "not set": rather than
+	// the first folder, the news feed is the default main tab (it is the
+	// tab the app opens on out of the box), falling back to the first tab
+	// only while the news feed is hidden or missing.
 	const auto accountId = _owner->session().userId().bare;
 	const auto id = FilterId(Core::App().settings().chatFiltersMainTab(accountId));
-	return (id && ranges::contains(_list, id, &ChatFilter::id))
-		? id
+	if (id && ranges::contains(_list, id, &ChatFilter::id)) {
+		return id;
+	}
+	return ranges::contains(_list, kNewsFeedFilterId, &ChatFilter::id)
+		? kNewsFeedFilterId
 		: lookupId(0);
 }
 
