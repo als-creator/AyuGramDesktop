@@ -761,11 +761,11 @@ void HistoryInner::checkAutoAdvanceWheel(not_null<QWheelEvent*> event) {
 	}
 	if (delta.y() < 0 && _scroll->scrollTop() >= max) {
 		// Wheel down right at the very end, where the list cannot scroll
-		// further: this is the user asking for the next chat. Unlike the
-		// scroll path this does not wait for a departure from the end
-		// first: a chat that opens at its newest message already sits at
-		// the end and the wheel down there means "keep reading".
-		if (_history->loadedAtBottom()) {
+		// further: this is the user asking for the next chat. The wheel
+		// waits for a departure from the end first, exactly like the scroll
+		// path, so a leftover turn of the wheel cannot leave the chat the
+		// carousel has just landed on.
+		if (_autoAdvanceArmed && _history->loadedAtBottom()) {
 			armAutoAdvance(false);
 		}
 	} else if (delta.y() > 0 && _scroll->scrollTop() <= 0) {
