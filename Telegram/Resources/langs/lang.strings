@@ -8758,11 +8758,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "ayu_HideShareButton" = "Hide Side \"Share\" Button";
 "ayu_ChatFoldersHeader" = "Chat Folders";
 "ayu_AutoAdvance" = "Chat carousel by scrolling";
-"ayu_AutoAdvanceDelay" = "Wait before switching";
 "ayu_AutoAdvanceScope" = "What to scroll through";
 "ayu_AutoAdvanceScopeEveryChat" = "All chats";
 "ayu_AutoAdvanceScopeBroadcast" = "Broadcast channels only";
-"ayu_AutoAdvanceScopeAbout" = "The chat carousel moves only by your own scrolling. Scroll a chat to its very end and hold still for the wait time to open the next chat of the current tab; scroll up to the very first message and hold still the same way to go back to the previous chat, to its last message. The list wraps around, so the carousel keeps turning in a circle. Depending on the scope it steps through every chat or through broadcast channels only.";
+"ayu_AutoAdvanceScopeAbout" = "The chat carousel moves only by your own wheel. Roll down past the very end of a chat and keep rolling there to open the next chat of the current tab; roll up past the very first message the same way to go back to the previous chat, to its last message. The first roll at an edge only counts, the second one steps over, so the last message always stays readable. The list wraps around, so the carousel keeps turning in a circle. Depending on the scope it steps through every chat or through broadcast channels only.";
 "ayu_SettingsSupport" = "Support settings";
 "ayu_SettingsSendSwitchBehavior" = "Send and switch behavior";
 "ayu_SettingsTemplatesAutocomplete" = "Enable templates autocomplete";

@@ -135,7 +135,6 @@
 	"HideShareButton_PC": "Скрыть боковую кнопку \"Поделиться\"",
 	"ChatFoldersHeader": "Папки",
 	"AutoAdvance": "Автоматически переходить к следующему непрочитанному чату",
-	"AutoAdvanceDelay": "Ждать перед переключением",
 	"SettingsSupport": "Настройки поддержки",
 	"SettingsSendSwitchBehavior": "Поведение при отправке и переключении",
 	"SettingsTemplatesAutocomplete": "Включить автодополнение шаблонов",
